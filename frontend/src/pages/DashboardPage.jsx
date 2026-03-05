@@ -14,7 +14,7 @@ function DashboardPage({ stats, campaigns, accounts, refreshing, refreshAll }) {
         </button>
       </header>
 
-      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
         <div className="glass-panel group relative overflow-hidden rounded-2xl p-4 sm:p-6 transition-transform hover:scale-[1.02]">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-cyan-200/50 transition-transform group-hover:scale-150" />
           <p className="relative text-xs uppercase tracking-wider text-slate-500">Total Accounts</p>
