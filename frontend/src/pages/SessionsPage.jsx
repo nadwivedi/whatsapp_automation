@@ -45,22 +45,26 @@ function SessionsPage({
         </div>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
         {accounts.map((account) => {
           const isSessionRunning = ["initializing", "qr_ready", "authenticated"].includes(account.status);
 
           return (
-            <div key={account._id} className="glass-panel rounded-2xl p-4 sm:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-heading text-base sm:text-lg font-semibold text-slate-900">{account.name}</p>
-                  <p className="text-xs sm:text-sm text-slate-500">{account.phoneNumber || "Not linked yet"}</p>
-                  <p className="text-xs text-slate-500">
+            <div key={account._id} className="glass-panel rounded-xl border border-white/80 p-3 sm:p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-heading truncate text-sm sm:text-base font-semibold text-slate-900">
+                    {account.name}
+                  </p>
+                  <p className="truncate text-[11px] sm:text-xs text-slate-600">
+                    {account.phoneNumber || "Not linked yet"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500">
                     Last connected: {account.lastConnectedAt ? formatDate(account.lastConnectedAt) : "Never"}
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${
+                  className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold uppercase ${
                     accountTone[account.status] || "bg-slate-100 text-slate-700"
                   }`}
                 >
@@ -68,30 +72,30 @@ function SessionsPage({
                 </span>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {!isSessionRunning && (
                   <button
                     type="button"
-                    className="btn-green"
+                    className="btn-green w-full"
                     onClick={() => accountAction(account._id, "start")}
                     disabled={busy === `start-${account._id}`}
                   >
-                    {busy === `start-${account._id}` ? "Starting..." : "Start Session"}
+                    {busy === `start-${account._id}` ? "Starting..." : "Start"}
                   </button>
                 )}
                 {isSessionRunning && (
                   <button
                     type="button"
-                    className="btn-red"
+                    className="btn-red w-full"
                     onClick={() => accountAction(account._id, "stop")}
                     disabled={busy === `stop-${account._id}`}
                   >
-                    {busy === `stop-${account._id}` ? "Stopping..." : "Stop Session"}
+                    {busy === `stop-${account._id}` ? "Stopping..." : "Stop"}
                   </button>
                 )}
                 <button
                   type="button"
-                  className="btn-dark"
+                  className="btn-dark w-full"
                   onClick={() => showQr(account)}
                   disabled={busy === `qr-${account._id}`}
                 >
@@ -100,7 +104,7 @@ function SessionsPage({
                 {(!isSessionRunning || account.isActive === false) && (
                   <button
                     type="button"
-                    className="btn-red"
+                    className="btn-red w-full col-span-2"
                     onClick={() => removeAccount(account)}
                     disabled={busy === `delete-${account._id}`}
                   >
@@ -109,29 +113,37 @@ function SessionsPage({
                 )}
               </div>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-[130px_120px_120px] sm:items-center">
-                <p className="text-xs text-slate-500">Sent today: {account.sentToday}</p>
-                <input
-                  className="input text-xs"
-                  type="number"
-                  min="1"
-                  max="500"
-                  value={dailyDrafts[account._id] ?? account.dailyLimit}
-                  onChange={(e) =>
-                    setDailyDrafts((prev) => ({
-                      ...prev,
-                      [account._id]: e.target.value,
-                    }))
-                  }
-                />
-                <button
-                  type="button"
-                  className="btn-amber"
-                  onClick={() => updateDailyLimit(account._id)}
-                  disabled={busy === `limit-${account._id}`}
-                >
-                  {busy === `limit-${account._id}` ? "Saving..." : "Save Limit"}
-                </button>
+              <div className="mt-3 grid gap-2">
+                <p className="rounded-lg bg-slate-100 px-2.5 py-2 text-[11px] text-slate-600">
+                  Sent today: <span className="font-semibold text-slate-800">{account.sentToday}</span>
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    className="input h-9 text-xs border-slate-500/70 focus:border-slate-700 focus:ring-slate-300/70"
+                    type="number"
+                    min="1"
+                    max="500"
+                    placeholder="No of message per day"
+                    value={
+                      dailyDrafts[account._id] ??
+                      (account.dailyLimit == null ? "" : String(account.dailyLimit))
+                    }
+                    onChange={(e) =>
+                      setDailyDrafts((prev) => ({
+                        ...prev,
+                        [account._id]: e.target.value,
+                      }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="btn-amber whitespace-nowrap"
+                    onClick={() => updateDailyLimit(account._id)}
+                    disabled={busy === `limit-${account._id}`}
+                  >
+                    {busy === `limit-${account._id}` ? "Saving..." : "Save"}
+                  </button>
+                </div>
               </div>
 
               {account.lastError && (
@@ -141,7 +153,7 @@ function SessionsPage({
           );
         })}
 
-        {accounts.length === 0 && !dashboardLoading && <p className="empty col-span-2">No sessions yet.</p>}
+        {accounts.length === 0 && !dashboardLoading && <p className="empty col-span-full">No sessions yet.</p>}
       </div>
 
       {showCreatePopup && (
@@ -184,14 +196,17 @@ function SessionsPage({
                 required
               />
               <input
-                className="input"
+                className="input border-slate-500/70 focus:border-slate-700 focus:ring-slate-300/70"
                 type="number"
                 min="1"
                 max="500"
+                placeholder="No of message per day"
                 value={accountForm.dailyLimit}
                 onChange={(e) => setAccountForm((p) => ({ ...p, dailyLimit: e.target.value }))}
-                required
               />
+              <p className="text-[11px] text-slate-500">
+                Leave blank to use Settings daily limit for this mobile.
+              </p>
               <button className="btn-cyan" disabled={busy === "create-account"}>
                 {busy === "create-account" ? "Creating..." : "Create Session"}
               </button>

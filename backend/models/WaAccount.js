@@ -52,7 +52,7 @@ const waAccountSchema = new mongoose.Schema(
     },
     dailyLimit: {
       type: Number,
-      default: 20,
+      default: null,
       min: 1,
       max: 500,
     },

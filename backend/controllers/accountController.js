@@ -77,7 +77,7 @@ async function listAccounts(req, res) {
 }
 
 async function createAccount(req, res) {
-  const { name, dailyLimit, phoneNumber } = req.body || {};
+  const { name, phoneNumber } = req.body || {};
   const cleanedPhone =
     typeof phoneNumber === "string" ? phoneNumber.trim().replace(/[^\d+]/g, "") : "";
 
@@ -110,16 +110,21 @@ async function createAccount(req, res) {
     return res.status(400).json({ message: "Account name or mobile number is required." });
   }
 
-  const limit = Number.isFinite(Number(dailyLimit)) ? Number(dailyLimit) : 20;
-  if (limit < 1 || limit > 500) {
-    return res.status(400).json({ message: "dailyLimit must be between 1 and 500." });
+  const rawDailyLimit = req.body?.dailyLimit;
+  let resolvedDailyLimit = null;
+  if (rawDailyLimit !== "" && rawDailyLimit != null) {
+    const limit = Number(rawDailyLimit);
+    if (!Number.isFinite(limit) || limit < 1 || limit > 500) {
+      return res.status(400).json({ message: "dailyLimit must be between 1 and 500." });
+    }
+    resolvedDailyLimit = Math.floor(limit);
   }
 
   const account = await WaAccount.create({
     owner: req.user._id,
     name: resolvedName,
     phoneNumber: cleanedPhone || null,
-    dailyLimit: limit,
+    dailyLimit: resolvedDailyLimit,
   });
 
   try {
@@ -160,15 +165,24 @@ async function stopAccountSession(req, res) {
 
 async function updateDailyLimit(req, res) {
   const { accountId } = req.params;
-  const limit = Number(req.body?.dailyLimit);
+  const hasDailyLimit = Object.prototype.hasOwnProperty.call(req.body || {}, "dailyLimit");
+  if (!hasDailyLimit) {
+    return res.status(400).json({ message: "dailyLimit is required." });
+  }
 
-  if (!Number.isFinite(limit) || limit < 1 || limit > 500) {
-    return res.status(400).json({ message: "dailyLimit must be between 1 and 500." });
+  const rawDailyLimit = req.body?.dailyLimit;
+  let nextDailyLimit = null;
+  if (rawDailyLimit !== "" && rawDailyLimit != null) {
+    const limit = Number(rawDailyLimit);
+    if (!Number.isFinite(limit) || limit < 1 || limit > 500) {
+      return res.status(400).json({ message: "dailyLimit must be between 1 and 500." });
+    }
+    nextDailyLimit = Math.floor(limit);
   }
 
   const updated = await WaAccount.findByIdAndUpdate(
     { _id: accountId, owner: req.user._id },
-    { dailyLimit: limit },
+    { dailyLimit: nextDailyLimit },
     { returnDocument: "after" },
   );
 

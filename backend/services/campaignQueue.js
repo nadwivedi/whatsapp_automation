@@ -317,7 +317,11 @@ class CampaignQueue {
 
         WaAccount.resetDailyWindowIfNeeded(account);
         WaAccount.resetHourlyWindowIfNeeded(account);
-        const effectiveDailyCap = Math.min(account.dailyLimit, ownerSettings.perMobileDailyLimit);
+        const accountDailyLimit = Number(account.dailyLimit);
+        const effectiveDailyCap =
+          Number.isFinite(accountDailyLimit) && accountDailyLimit > 0
+            ? Math.floor(accountDailyLimit)
+            : ownerSettings.perMobileDailyLimit;
         const effectiveHourlyCap = ownerSettings.perMobileHourlyLimit;
         if (account.sentToday >= effectiveDailyCap) {
           await account.save();

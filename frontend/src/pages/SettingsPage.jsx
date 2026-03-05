@@ -32,11 +32,17 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
       };
     }
 
-    const remainingMessagesToday = activeConnectedAccounts.reduce((sum, account) => {
-      const accountDailyLimit = Number.isFinite(account.dailyLimit) ? account.dailyLimit : dailyLimit;
-      const effectiveDailyLimit = Math.min(dailyLimit, accountDailyLimit);
+    const perAccountDailyCaps = activeConnectedAccounts.map((account) => {
+      const accountDailyLimitRaw = Number(account.dailyLimit);
+      return Number.isFinite(accountDailyLimitRaw) && accountDailyLimitRaw > 0
+        ? Math.floor(accountDailyLimitRaw)
+        : dailyLimit;
+    });
+
+    const remainingMessagesToday = activeConnectedAccounts.reduce((sum, account, index) => {
+      const dailyCap = perAccountDailyCaps[index];
       const sentToday = Number(account.sentToday) || 0;
-      return sum + Math.max(0, effectiveDailyLimit - sentToday);
+      return sum + Math.max(0, dailyCap - sentToday);
     }, 0);
 
     const remainingMessagesThisHour = activeConnectedAccounts.reduce((sum, account) => {
@@ -48,7 +54,7 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
       dailyLimit,
       hourlyLimit,
       activeConnectedCount: activeConnectedAccounts.length,
-      maxMessagesNext24Hours: activeConnectedAccounts.length * dailyLimit,
+      maxMessagesNext24Hours: perAccountDailyCaps.reduce((sum, cap) => sum + cap, 0),
       maxMessagesNextHour: activeConnectedAccounts.length * hourlyLimit,
       remainingMessagesToday,
       remainingMessagesThisHour,
@@ -69,7 +75,7 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
         const accountDailyLimit = Number.isFinite(accountDailyLimitRaw) && accountDailyLimitRaw > 0
           ? Math.floor(accountDailyLimitRaw)
           : effectiveDailyLimit;
-        const dailyCap = Math.min(effectiveDailyLimit, accountDailyLimit);
+        const dailyCap = accountDailyLimit;
         const sentToday = Number(account.sentToday) || 0;
         const dailyRemaining = Math.max(0, dailyCap - sentToday);
         const dayStartMs = account.dayWindowStart
@@ -256,7 +262,7 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-700 sm:text-sm">Daily capacity</span>
                     <span className="text-xs font-semibold text-slate-900 sm:text-sm">
-                      {preview.activeConnectedCount} x {form.perMobileDailyLimit}
+                      {preview.maxMessagesNext24Hours}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">

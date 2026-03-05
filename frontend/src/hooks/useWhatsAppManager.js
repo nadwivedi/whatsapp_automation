@@ -68,7 +68,7 @@ export function useWhatsAppManager() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authForm, setAuthForm] = useState({ name: "", mobileNumber: "", password: "" });
 
-  const [accountForm, setAccountForm] = useState({ phoneNumber: "", dailyLimit: 20 });
+  const [accountForm, setAccountForm] = useState({ phoneNumber: "", dailyLimit: "" });
   const [templateForm, setTemplateForm] = useState({
     name: "",
     body: "",
@@ -113,11 +113,6 @@ export function useWhatsAppManager() {
     () => countRecipients(campaignForm.recipientsText),
     [campaignForm.recipientsText],
   );
-
-  useEffect(() => {
-    const daily = String(settings.perMobileDailyLimit || DEFAULT_SETTINGS.perMobileDailyLimit);
-    setAccountForm((prev) => (prev.phoneNumber ? prev : { ...prev, dailyLimit: daily }));
-  }, [settings.perMobileDailyLimit]);
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -189,7 +184,10 @@ export function useWhatsAppManager() {
           setDailyDrafts((prev) => {
             const next = { ...prev };
             for (const account of a.accounts || []) {
-              if (next[account._id] == null) next[account._id] = account.dailyLimit;
+              if (next[account._id] == null) {
+                next[account._id] =
+                  account.dailyLimit == null ? "" : String(account.dailyLimit);
+              }
             }
             return next;
           });
@@ -240,6 +238,16 @@ export function useWhatsAppManager() {
       ]);
       setProfile(profilePayload);
       setAccounts(a.accounts || []);
+      setDailyDrafts((prev) => {
+        const next = { ...prev };
+        for (const account of a.accounts || []) {
+          if (next[account._id] == null) {
+            next[account._id] =
+              account.dailyLimit == null ? "" : String(account.dailyLimit);
+          }
+        }
+        return next;
+      });
       setTemplates(t.templates || []);
       setBusinessCategories(bc.categories || []);
       setBusinesses(b.businesses || []);
@@ -312,15 +320,20 @@ export function useWhatsAppManager() {
 
     setBusy("create-account");
     try {
-      const payload = await createAccountApi(token, {
+      const dailyLimitRaw = String(accountForm.dailyLimit ?? "").trim();
+      const createPayload = {
         name: "",
         phoneNumber: accountForm.phoneNumber.trim(),
-        dailyLimit: Number(accountForm.dailyLimit),
-      });
+      };
+      if (dailyLimitRaw) {
+        createPayload.dailyLimit = Number(dailyLimitRaw);
+      }
+
+      const payload = await createAccountApi(token, createPayload);
 
       setAccountForm({
         phoneNumber: "",
-        dailyLimit: settings.perMobileDailyLimit || DEFAULT_SETTINGS.perMobileDailyLimit,
+        dailyLimit: "",
       });
       await refreshAll();
       setNotice({ type: "success", text: "Session created. Scan QR to authenticate." });
@@ -354,8 +367,17 @@ export function useWhatsAppManager() {
   async function updateDailyLimit(accountId) {
     setBusy(`limit-${accountId}`);
     try {
-      await updateAccountDailyLimit(token, accountId, Number(dailyDrafts[accountId]));
-      setNotice({ type: "success", text: "Daily limit updated." });
+      const rawValue = String(dailyDrafts[accountId] ?? "").trim();
+      const payloadLimit = rawValue ? Number(rawValue) : null;
+      if (rawValue && !Number.isFinite(payloadLimit)) {
+        setNotice({ type: "error", text: "Daily limit must be a valid number." });
+        return;
+      }
+      await updateAccountDailyLimit(token, accountId, payloadLimit);
+      setNotice({
+        type: "success",
+        text: payloadLimit == null ? "Session override cleared. Settings limit will apply." : "Daily limit updated.",
+      });
       await refreshAll();
     } catch (error) {
       setNotice({ type: "error", text: error.message });

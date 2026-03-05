@@ -55,14 +55,22 @@ async function buildCapacity(ownerId, perMobileDailyLimit, perMobileHourlyLimit)
   }
 
   const activeConnectedCount = activeConnectedAccounts.length;
-  const maxMessagesNext24Hours = activeConnectedCount * perMobileDailyLimit;
+  const perAccountDailyCaps = activeConnectedAccounts.map((account) => {
+    const accountDailyLimit = Number(account.dailyLimit);
+    if (Number.isFinite(accountDailyLimit) && accountDailyLimit > 0) {
+      return Math.floor(accountDailyLimit);
+    }
+    return perMobileDailyLimit;
+  });
+  const maxMessagesNext24Hours = perAccountDailyCaps.reduce((sum, cap) => sum + cap, 0);
   const maxMessagesNextHour = activeConnectedCount * perMobileHourlyLimit;
 
   const remainingMessagesToday = activeConnectedAccounts.reduce((sum, account) => {
-    const accountDailyLimit = Number.isFinite(account.dailyLimit)
-      ? account.dailyLimit
-      : perMobileDailyLimit;
-    const effectiveDailyLimit = Math.min(perMobileDailyLimit, accountDailyLimit);
+    const accountDailyLimit = Number(account.dailyLimit);
+    const effectiveDailyLimit =
+      Number.isFinite(accountDailyLimit) && accountDailyLimit > 0
+        ? Math.floor(accountDailyLimit)
+        : perMobileDailyLimit;
     const sentToday = Number(account.sentToday) || 0;
     return sum + Math.max(0, effectiveDailyLimit - sentToday);
   }, 0);
