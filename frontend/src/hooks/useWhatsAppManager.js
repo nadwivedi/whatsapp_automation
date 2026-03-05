@@ -45,7 +45,7 @@ export function useWhatsAppManager() {
   const [authBusy, setAuthBusy] = useState(false);
   const [authForm, setAuthForm] = useState({ name: "", mobileNumber: "", password: "" });
 
-  const [accountForm, setAccountForm] = useState({ name: "", phoneNumber: "", dailyLimit: 20 });
+  const [accountForm, setAccountForm] = useState({ phoneNumber: "", dailyLimit: 20 });
   const [templateForm, setTemplateForm] = useState({
     name: "",
     body: "",
@@ -56,7 +56,6 @@ export function useWhatsAppManager() {
   });
   const [campaignForm, setCampaignForm] = useState({
     title: "",
-    accountIds: [],
     templateId: "",
     messageBody: "",
     recipientsText: "",
@@ -64,6 +63,8 @@ export function useWhatsAppManager() {
     dailyMessageLimit: "",
     dateFrom: "",
     dateTo: "",
+    perNumberDailySafeguard: "20",
+    perNumberHourlySafeguard: "2",
   });
 
   const stats = useMemo(() => {
@@ -251,12 +252,12 @@ export function useWhatsAppManager() {
     setBusy("create-account");
     try {
       const payload = await createAccountApi(token, {
-        name: accountForm.name.trim(),
+        name: "",
         phoneNumber: accountForm.phoneNumber.trim(),
         dailyLimit: Number(accountForm.dailyLimit),
       });
 
-      setAccountForm({ name: "", phoneNumber: "", dailyLimit: 20 });
+      setAccountForm({ phoneNumber: "", dailyLimit: 20 });
       await refreshAll();
       setNotice({ type: "success", text: "Session created. Scan QR to authenticate." });
 
@@ -369,8 +370,12 @@ export function useWhatsAppManager() {
 
   async function createCampaign(e) {
     e.preventDefault();
-    if (!campaignForm.accountIds.length) {
-      setNotice({ type: "error", text: "Select at least one sending session." });
+    const eligibleAccountIds = accounts
+      .filter((account) => account.isActive !== false && account.status === "authenticated")
+      .map((account) => account._id);
+
+    if (!eligibleAccountIds.length) {
+      setNotice({ type: "error", text: "No active authenticated sessions available for sending." });
       return;
     }
     if (!campaignForm.maxMessages) {
@@ -385,7 +390,7 @@ export function useWhatsAppManager() {
     try {
       await createCampaignApi(token, {
         title: campaignForm.title.trim(),
-        accountIds: campaignForm.accountIds,
+        accountIds: eligibleAccountIds,
         templateId: campaignForm.templateId || undefined,
         messageBody: campaignForm.messageBody,
         recipientsText: campaignForm.recipientsText,
@@ -395,16 +400,19 @@ export function useWhatsAppManager() {
           : undefined,
         dateFrom: campaignForm.dateFrom || undefined,
         dateTo: campaignForm.dateTo || undefined,
+        perNumberDailySafeguard: Number(campaignForm.perNumberDailySafeguard || 20),
+        perNumberHourlySafeguard: Number(campaignForm.perNumberHourlySafeguard || 2),
       });
       setCampaignForm((prev) => ({
         ...prev,
         title: "",
-        accountIds: [],
         recipientsText: "",
         maxMessages: "",
         dailyMessageLimit: "",
         dateFrom: "",
         dateTo: "",
+        perNumberDailySafeguard: "20",
+        perNumberHourlySafeguard: "2",
       }));
       setNotice({ type: "success", text: "Campaign queued." });
       await refreshAll();

@@ -64,6 +64,15 @@ const waAccountSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    sentThisHour: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    hourWindowStart: {
+      type: Date,
+      default: null,
+    },
     lastError: {
       type: String,
       default: null,
@@ -82,6 +91,16 @@ waAccountSchema.statics.resetDailyWindowIfNeeded = function resetDailyWindowIfNe
   if (account.sentOn !== today) {
     account.sentOn = today;
     account.sentToday = 0;
+  }
+  return account;
+};
+
+waAccountSchema.statics.resetHourlyWindowIfNeeded = function resetHourlyWindowIfNeeded(account) {
+  const now = Date.now();
+  const hourStart = account.hourWindowStart ? new Date(account.hourWindowStart).getTime() : 0;
+  if (!hourStart || now - hourStart >= 60 * 60 * 1000) {
+    account.hourWindowStart = new Date();
+    account.sentThisHour = 0;
   }
   return account;
 };

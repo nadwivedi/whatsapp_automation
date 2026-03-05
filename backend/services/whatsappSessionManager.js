@@ -1,7 +1,7 @@
-const QRCode = require("qrcode");
+﻿const QRCode = require("qrcode");
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const { WaAccount } = require("../models/WaAccount");
-const settings = require("../config/settings");
+const AUTH_DATA_PATH = process.env.AUTH_DATA_PATH || process.env.WHATSAPP_AUTH_DIR || ".wwebjs_auth";
 
 class WhatsappSessionManager {
   constructor() {
@@ -72,7 +72,7 @@ class WhatsappSessionManager {
     const client = new Client({
       authStrategy: new LocalAuth({
         clientId: account.clientId,
-        dataPath: settings.authDataPath,
+        dataPath: AUTH_DATA_PATH,
       }),
       puppeteer: {
         headless: true,

@@ -51,6 +51,14 @@ async function createCampaign(req, res) {
       : Number(req.body.dailyMessageLimit);
   const dateFrom = req.body?.dateFrom ? String(req.body.dateFrom) : null;
   const dateTo = req.body?.dateTo ? String(req.body.dateTo) : null;
+  const perNumberDailySafeguard =
+    req.body?.perNumberDailySafeguard == null || req.body?.perNumberDailySafeguard === ""
+      ? null
+      : Number(req.body.perNumberDailySafeguard);
+  const perNumberHourlySafeguard =
+    req.body?.perNumberHourlySafeguard == null || req.body?.perNumberHourlySafeguard === ""
+      ? null
+      : Number(req.body.perNumberHourlySafeguard);
 
   const inputAccountIds = Array.isArray(req.body?.accountIds)
     ? req.body.accountIds.filter(Boolean)
@@ -69,9 +77,13 @@ async function createCampaign(req, res) {
   const accounts = await WaAccount.find({
     _id: { $in: uniqueAccountIds },
     owner: req.user._id,
+    isActive: true,
+    status: "authenticated",
   }).select("_id");
   if (accounts.length !== uniqueAccountIds.length) {
-    return res.status(400).json({ message: "One or more selected WhatsApp accounts are invalid." });
+    return res.status(400).json({
+      message: "One or more selected WhatsApp accounts are not active/authenticated.",
+    });
   }
 
   if (templateId) {
@@ -113,6 +125,18 @@ async function createCampaign(req, res) {
   if (dateFrom && dateTo && dateFrom > dateTo) {
     return res.status(400).json({ message: "dateFrom cannot be later than dateTo." });
   }
+  if (
+    perNumberDailySafeguard != null &&
+    (!Number.isFinite(perNumberDailySafeguard) || perNumberDailySafeguard < 1 || perNumberDailySafeguard > 500)
+  ) {
+    return res.status(400).json({ message: "perNumberDailySafeguard must be between 1 and 500." });
+  }
+  if (
+    perNumberHourlySafeguard != null &&
+    (!Number.isFinite(perNumberHourlySafeguard) || perNumberHourlySafeguard < 1 || perNumberHourlySafeguard > 100)
+  ) {
+    return res.status(400).json({ message: "perNumberHourlySafeguard must be between 1 and 100." });
+  }
 
   const campaign = await campaignQueue.enqueueCampaign({
     ownerId: req.user._id,
@@ -128,6 +152,8 @@ async function createCampaign(req, res) {
     dailyMessageLimit,
     dateFrom,
     dateTo,
+    perNumberDailySafeguard,
+    perNumberHourlySafeguard,
     recipientsText: recipientsText || "",
   });
 

@@ -62,6 +62,18 @@ const campaignSchema = new mongoose.Schema(
       default: null,
       match: [/^\d{4}-\d{2}-\d{2}$/, "dateTo must be YYYY-MM-DD"],
     },
+    perNumberDailySafeguard: {
+      type: Number,
+      default: 20,
+      min: 1,
+      max: 500,
+    },
+    perNumberHourlySafeguard: {
+      type: Number,
+      default: 2,
+      min: 1,
+      max: 100,
+    },
     sentToday: {
       type: Number,
       default: 0,

@@ -1,9 +1,13 @@
-const { Campaign } = require("../models/Campaign");
+﻿const { Campaign } = require("../models/Campaign");
 const { CampaignMessage } = require("../models/CampaignMessage");
 const { WaAccount } = require("../models/WaAccount");
 const whatsappSessionManager = require("./whatsappSessionManager");
-const settings = require("../config/settings");
 const { parseRecipients } = require("../utils/phone");
+
+const QUEUE_INTERVAL_MS = Number(process.env.QUEUE_INTERVAL_MS || 3000);
+const MIN_GAP_PER_ACCOUNT_MS = Number(process.env.MIN_GAP_PER_ACCOUNT_MS || 4000);
+const SAFEGUARD_PER_NUMBER_DAILY = Number(process.env.SAFEGUARD_PER_NUMBER_DAILY || 20);
+const SAFEGUARD_PER_NUMBER_HOURLY = Number(process.env.SAFEGUARD_PER_NUMBER_HOURLY || 2);
 
 class CampaignQueue {
   constructor() {
@@ -21,7 +25,7 @@ class CampaignQueue {
       this.tick().catch(() => {
         // Avoid process crash, errors are persisted in DB.
       });
-    }, settings.queueIntervalMs);
+    }, QUEUE_INTERVAL_MS);
   }
 
   stop() {
@@ -36,7 +40,7 @@ class CampaignQueue {
     if (!lastSentAt) {
       return false;
     }
-    return Date.now() - lastSentAt < settings.minGapPerAccountMs;
+    return Date.now() - lastSentAt < MIN_GAP_PER_ACCOUNT_MS;
   }
 
   markAccountSent(accountId) {
@@ -49,6 +53,14 @@ class CampaignQueue {
       campaign.sentOn = today;
       campaign.sentToday = 0;
     }
+  }
+
+  getPerNumberDailySafeguard(campaign) {
+    return campaign.perNumberDailySafeguard || SAFEGUARD_PER_NUMBER_DAILY;
+  }
+
+  getPerNumberHourlySafeguard(campaign) {
+    return campaign.perNumberHourlySafeguard || SAFEGUARD_PER_NUMBER_HOURLY;
   }
 
   async enqueueCampaign(payload) {
@@ -105,6 +117,10 @@ class CampaignQueue {
       dailyMessageLimit: payload.dailyMessageLimit || null,
       dateFrom: payload.dateFrom || null,
       dateTo: payload.dateTo || null,
+      perNumberDailySafeguard:
+        payload.perNumberDailySafeguard || SAFEGUARD_PER_NUMBER_DAILY,
+      perNumberHourlySafeguard:
+        payload.perNumberHourlySafeguard || SAFEGUARD_PER_NUMBER_HOURLY,
       status: "queued",
       totalRecipients: recipients.length,
       queuedCount: recipients.length,
@@ -240,9 +256,20 @@ class CampaignQueue {
         }
 
         WaAccount.resetDailyWindowIfNeeded(account);
-        if (account.sentToday >= account.dailyLimit) {
+        WaAccount.resetHourlyWindowIfNeeded(account);
+        const effectiveDailyCap = Math.min(
+          account.dailyLimit,
+          this.getPerNumberDailySafeguard(campaign),
+        );
+        const effectiveHourlyCap = this.getPerNumberHourlySafeguard(campaign);
+        if (account.sentToday >= effectiveDailyCap) {
           await account.save();
-          lastBlockReason = "Daily limit reached for one or more selected sessions.";
+          lastBlockReason = `Daily safeguard reached (${effectiveDailyCap}/day) for one or more selected sessions.`;
+          continue;
+        }
+        if (account.sentThisHour >= effectiveHourlyCap) {
+          await account.save();
+          lastBlockReason = `Hourly safeguard reached (${effectiveHourlyCap}/hour) for one or more selected sessions.`;
           continue;
         }
         if (account.status !== "authenticated") {
@@ -295,6 +322,7 @@ class CampaignQueue {
         campaign.lastError = null;
 
         selectedAccount.sentToday += 1;
+        selectedAccount.sentThisHour += 1;
         this.markAccountSent(selectedAccount._id);
 
         await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save()]);

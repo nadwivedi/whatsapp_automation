@@ -20,6 +20,9 @@ function CampaignsPage({
   messages,
 }) {
   const selectedTemplate = templates.find((item) => item._id === campaignForm.templateId) || null;
+  const eligibleAccounts = accounts.filter(
+    (account) => account.isActive !== false && account.status === "authenticated",
+  );
 
   return (
     <section className="space-y-6">
@@ -44,24 +47,13 @@ function CampaignsPage({
               onChange={(e) => setCampaignForm((p) => ({ ...p, title: e.target.value }))}
               required
             />
-            <select
-              className="input-dark"
-              multiple
-              value={campaignForm.accountIds}
-              onChange={(e) => {
-                const selectedIds = Array.from(e.target.selectedOptions).map((opt) => opt.value);
-                setCampaignForm((p) => ({ ...p, accountIds: selectedIds }));
-              }}
-            >
-              {accounts.map((account) => (
-                <option key={account._id} value={account._id}>
-                  {account.name} ({account.status})
-                </option>
-              ))}
-            </select>
+            <p className="rounded-lg bg-emerald-950/40 px-3 py-2 text-xs text-emerald-300">
+              Sending Accounts: Automatically uses all active authenticated sessions ({eligibleAccounts.length})
+            </p>
             <p className="text-xs text-slate-500">
-              Select one or more sending sessions (Ctrl/Cmd + click for multi-select). Selected:{" "}
-              {campaignForm.accountIds.length}
+              {eligibleAccounts.length
+                ? eligibleAccounts.map((account) => account.name).join(", ")
+                : "No active authenticated session found."}
             </p>
             <select
               className="input-dark"
@@ -123,6 +115,32 @@ function CampaignsPage({
                 placeholder="Messages per day (optional)"
                 value={campaignForm.dailyMessageLimit}
                 onChange={(e) => setCampaignForm((p) => ({ ...p, dailyMessageLimit: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <input
+                className="input-dark"
+                type="number"
+                min="1"
+                max="500"
+                placeholder="Per number/day safeguard"
+                value={campaignForm.perNumberDailySafeguard}
+                onChange={(e) =>
+                  setCampaignForm((p) => ({ ...p, perNumberDailySafeguard: e.target.value }))
+                }
+                required
+              />
+              <input
+                className="input-dark"
+                type="number"
+                min="1"
+                max="100"
+                placeholder="Per number/hour safeguard"
+                value={campaignForm.perNumberHourlySafeguard}
+                onChange={(e) =>
+                  setCampaignForm((p) => ({ ...p, perNumberHourlySafeguard: e.target.value }))
+                }
+                required
               />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -209,6 +227,12 @@ function CampaignsPage({
                         Per day: {campaign.dailyMessageLimit}
                       </span>
                     )}
+                    <span className="rounded-full bg-fuchsia-100 px-2.5 py-1 text-fuchsia-700">
+                      Safeguard/day per number: {campaign.perNumberDailySafeguard || 20}
+                    </span>
+                    <span className="rounded-full bg-violet-100 px-2.5 py-1 text-violet-700">
+                      Safeguard/hour per number: {campaign.perNumberHourlySafeguard || 2}
+                    </span>
                     {(campaign.dateFrom || campaign.dateTo) && (
                       <span className="rounded-full bg-slate-200 px-2.5 py-1 text-slate-700">
                         Window: {campaign.dateFrom || "--"} to {campaign.dateTo || "--"}
