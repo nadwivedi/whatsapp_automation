@@ -56,19 +56,19 @@ function TemplatesPage({
   }
 
   return (
-    <section className="space-y-6">
-      <header className="flex items-center justify-between">
+    <section className="space-y-4 sm:space-y-6">
+      <header className="flex flex-wrap items-start sm:items-center justify-between gap-2">
         <div>
-          <p className="font-heading text-sm uppercase tracking-[0.2em] text-slate-500">Manage</p>
-          <h1 className="font-heading text-3xl font-bold text-slate-900">Templates</h1>
+          <p className="font-heading text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-500">Manage</p>
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-900">Templates</h1>
         </div>
         <button className="btn-dark" onClick={refreshAll} disabled={refreshing}>
           {refreshing ? "Refreshing..." : "Refresh"}
         </button>
       </header>
 
-      <div className="glass-panel rounded-2xl p-6">
-        <h2 className="font-heading text-xl font-semibold text-slate-900">Create New Template</h2>
+      <div className="glass-panel rounded-2xl p-4 sm:p-6">
+        <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">Create New Template</h2>
         <form className="mt-4 space-y-3" onSubmit={createTemplate}>
           <input
             className="input"
@@ -134,7 +134,7 @@ function TemplatesPage({
 
       <div className="grid gap-4 md:grid-cols-2">
         {templates.map((template) => (
-          <div key={template._id} className="glass-panel rounded-2xl p-6">
+          <div key={template._id} className="glass-panel rounded-2xl p-4 sm:p-6">
             <div className="flex items-center justify-between gap-2">
               <p className="font-heading text-base font-semibold text-slate-900">{template.name}</p>
               <div className="flex items-center gap-2">

@@ -2,21 +2,21 @@ import { formatDateTime } from "../utils/formatters";
 
 function MessagesPage({ allMessagesLoading, allMessages, loadAllMessages }) {
   return (
-    <section className="space-y-6">
-      <header className="flex items-center justify-between">
+    <section className="space-y-4 sm:space-y-6">
+      <header className="flex flex-wrap items-start sm:items-center justify-between gap-2">
         <div>
-          <p className="font-heading text-sm uppercase tracking-[0.2em] text-slate-500">View All</p>
-          <h1 className="font-heading text-3xl font-bold text-slate-900">Messages</h1>
+          <p className="font-heading text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-500">View All</p>
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-900">Messages</h1>
         </div>
         <button className="btn-cyan" onClick={loadAllMessages} disabled={allMessagesLoading}>
           {allMessagesLoading ? "Loading..." : "Load All Messages"}
         </button>
       </header>
 
-      <div className="glass-panel rounded-2xl p-6">
+      <div className="glass-panel rounded-2xl p-4 sm:p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-heading text-xl font-semibold text-slate-900">All Sent Messages</h2>
-          <p className="text-sm text-slate-600">Total: {allMessages.length} messages</p>
+          <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">All Sent Messages</h2>
+          <p className="text-xs sm:text-sm text-slate-600">Total: {allMessages.length} messages</p>
         </div>
 
         {allMessagesLoading ? (

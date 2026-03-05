@@ -29,11 +29,11 @@ function SessionsPage({
   }, [accountForm.phoneNumber]);
 
   return (
-    <section className="space-y-6">
-      <header className="flex items-center justify-between">
+    <section className="space-y-4 sm:space-y-6">
+      <header className="flex flex-wrap items-start sm:items-center justify-between gap-2">
         <div>
-          <p className="font-heading text-sm uppercase tracking-[0.2em] text-slate-500">Manage</p>
-          <h1 className="font-heading text-3xl font-bold text-slate-900">Sessions</h1>
+          <p className="font-heading text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-500">Manage</p>
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-900">Sessions</h1>
         </div>
         <div className="flex items-center gap-2">
           <button type="button" className="btn-cyan" onClick={() => setShowCreatePopup(true)}>
@@ -50,11 +50,11 @@ function SessionsPage({
           const isSessionRunning = ["initializing", "qr_ready", "authenticated"].includes(account.status);
 
           return (
-            <div key={account._id} className="glass-panel rounded-2xl p-6">
+            <div key={account._id} className="glass-panel rounded-2xl p-4 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-heading text-lg font-semibold text-slate-900">{account.name}</p>
-                  <p className="text-sm text-slate-500">{account.phoneNumber || "Not linked yet"}</p>
+                  <p className="font-heading text-base sm:text-lg font-semibold text-slate-900">{account.name}</p>
+                  <p className="text-xs sm:text-sm text-slate-500">{account.phoneNumber || "Not linked yet"}</p>
                   <p className="text-xs text-slate-500">
                     Last connected: {account.lastConnectedAt ? formatDate(account.lastConnectedAt) : "Never"}
                   </p>
@@ -149,8 +149,8 @@ function SessionsPage({
           <div className="glass-panel w-full max-w-lg rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="font-heading text-xl font-semibold text-slate-900">Create Session</h3>
-                <p className="text-sm text-slate-600">Session name will be auto-set from mobile number.</p>
+                <h3 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">Create Session</h3>
+                <p className="text-xs sm:text-sm text-slate-600">Session name will be auto-set from mobile number.</p>
               </div>
               <button
                 type="button"
@@ -173,7 +173,7 @@ function SessionsPage({
                 }
               }}
             >
-              <div className="rounded-xl bg-slate-100 px-3 py-2 text-sm text-slate-700">
+              <div className="rounded-xl bg-slate-100 px-3 py-2 text-xs sm:text-sm text-slate-700">
                 Session Name: <span className="font-semibold">{autoSessionName}</span>
               </div>
               <input
@@ -205,8 +205,8 @@ function SessionsPage({
           <div className="glass-panel w-full max-w-md rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="font-heading text-xl font-semibold text-slate-900">QR Preview</h3>
-                <p className="text-sm text-slate-600">
+                <h3 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">QR Preview</h3>
+                <p className="text-xs sm:text-sm text-slate-600">
                   {qrPreview.accountName} • {qrPreview.status}
                 </p>
               </div>
@@ -226,7 +226,7 @@ function SessionsPage({
                 <img
                   src={qrPreview.qrCodeDataUrl}
                   alt="WhatsApp QR"
-                  className="h-64 w-64 rounded-2xl border-4 border-white shadow-lg"
+                  className="h-52 w-52 sm:h-64 sm:w-64 rounded-2xl border-4 border-white shadow-lg"
                 />
               ) : (
                 <p className="empty w-full">QR not available yet.</p>

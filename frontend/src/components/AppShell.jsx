@@ -14,15 +14,15 @@ function AppShell({
   return (
     <div className="min-h-screen">
       <aside
-        className={`fixed left-0 top-0 z-50 h-screen w-64 transform bg-white/80 shadow-2xl backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 h-screen w-[17rem] sm:w-64 transform bg-white/80 shadow-2xl backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 ${
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-full flex-col border-r border-white/50 p-5">
-          <div className="mb-6 flex items-center justify-between">
+        <div className="flex h-full flex-col border-r border-white/50 p-4 sm:p-5">
+          <div className="mb-4 sm:mb-6 flex items-center justify-between">
             <div>
               <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">WhatsApp</p>
-              <h1 className="font-heading text-xl font-bold text-slate-900">Message Hub</h1>
+              <h1 className="font-heading text-lg sm:text-xl font-bold text-slate-900">Message Hub</h1>
             </div>
             <button
               type="button"
@@ -35,13 +35,13 @@ function AppShell({
             </button>
           </div>
 
-          <div className="mb-6 rounded-2xl bg-gradient-to-br from-cyan-500 to-emerald-500 p-4 text-white">
-            <p className="text-xs opacity-80">Welcome back,</p>
-            <p className="font-heading text-lg font-semibold">{profile?.user?.name || "User"}</p>
-            <p className="mt-1 text-xs opacity-80">{profile?.user?.mobileNumber || "--"}</p>
+          <div className="mb-4 sm:mb-6 rounded-2xl bg-gradient-to-br from-cyan-500 to-emerald-500 p-3 sm:p-4 text-white">
+            <p className="text-[11px] sm:text-xs opacity-80">Welcome back,</p>
+            <p className="font-heading text-base sm:text-lg font-semibold">{profile?.user?.name || "User"}</p>
+            <p className="mt-1 text-[11px] sm:text-xs opacity-80">{profile?.user?.mobileNumber || "--"}</p>
           </div>
 
-          <nav className="flex-1 space-y-2">
+          <nav className="flex-1 space-y-1.5 sm:space-y-2">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.key}
@@ -51,7 +51,7 @@ function AppShell({
                   setMobileMenuOpen(false);
                   if (item.key === "messages") onMessagesRouteOpen();
                 }}
-                className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left font-medium transition-all duration-200 ${
+                className={`flex w-full items-center gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-[15px] font-medium transition-all duration-200 ${
                   activeRoute === item.key
                     ? "bg-gradient-to-r from-cyan-500 to-emerald-500 text-white shadow-lg shadow-cyan-500/25"
                     : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
@@ -65,14 +65,14 @@ function AppShell({
             ))}
           </nav>
 
-          <div className="mt-auto pt-4">
+          <div className="mt-auto pt-3 sm:pt-4">
             <button
               type="button"
               onClick={() => {
                 logout();
                 setMobileMenuOpen(false);
               }}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 font-medium text-rose-600 transition hover:bg-rose-50"
+              className="flex w-full items-center gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-[15px] font-medium text-rose-600 transition hover:bg-rose-50"
             >
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-rose-100 text-[10px] font-semibold">
                 OUT
@@ -87,23 +87,23 @@ function AppShell({
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
       )}
 
-      <main className="min-h-screen px-4 py-4 lg:ml-64 lg:px-6 lg:py-6">
-        <div className="mb-4 flex items-center lg:hidden">
+      <main className="min-h-screen px-3 py-3 sm:px-4 sm:py-4 lg:ml-64 lg:px-6 lg:py-6">
+        <div className="mb-3 sm:mb-4 flex items-center lg:hidden">
           <button
             type="button"
             onClick={() => setMobileMenuOpen(true)}
-            className="mr-4 rounded-lg bg-slate-900 p-2 text-white"
+            className="mr-3 sm:mr-4 rounded-lg bg-slate-900 p-1.5 sm:p-2 text-white"
           >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="font-heading text-xl font-bold text-slate-900">WhatsApp Hub</h1>
+          <h1 className="font-heading text-lg sm:text-xl font-bold text-slate-900">WhatsApp Hub</h1>
         </div>
 
         {notice && (
           <div
-            className={`fixed right-6 top-6 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
+            className={`fixed right-3 top-3 sm:right-6 sm:top-6 z-50 rounded-xl px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium shadow-lg ${
               notice.type === "error" ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
             }`}
           >

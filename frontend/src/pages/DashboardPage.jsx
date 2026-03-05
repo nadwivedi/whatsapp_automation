@@ -3,50 +3,50 @@ import { accountTone, campaignTone } from "../utils/tones";
 
 function DashboardPage({ stats, campaigns, accounts, refreshing, refreshAll }) {
   return (
-    <div className="space-y-6">
-      <header className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <header className="flex flex-wrap items-start sm:items-center justify-between gap-2">
         <div>
-          <p className="font-heading text-sm uppercase tracking-[0.2em] text-slate-500">Overview</p>
-          <h1 className="font-heading text-3xl font-bold text-slate-900">Dashboard</h1>
+          <p className="font-heading text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-500">Overview</p>
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-900">Dashboard</h1>
         </div>
         <button className="btn-dark" onClick={refreshAll} disabled={refreshing}>
           {refreshing ? "Refreshing..." : "Refresh"}
         </button>
       </header>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <div className="glass-panel group relative overflow-hidden rounded-2xl p-6 transition-transform hover:scale-[1.02]">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="glass-panel group relative overflow-hidden rounded-2xl p-4 sm:p-6 transition-transform hover:scale-[1.02]">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-cyan-200/50 transition-transform group-hover:scale-150" />
           <p className="relative text-xs uppercase tracking-wider text-slate-500">Total Accounts</p>
-          <p className="relative font-heading text-4xl font-bold text-slate-900">{stats.accounts}</p>
-          <p className="relative mt-1 text-sm text-emerald-600">{stats.authenticated} authenticated</p>
+          <p className="relative font-heading text-3xl sm:text-4xl font-bold text-slate-900">{stats.accounts}</p>
+          <p className="relative mt-1 text-xs sm:text-sm text-emerald-600">{stats.authenticated} authenticated</p>
         </div>
 
-        <div className="glass-panel group relative overflow-hidden rounded-2xl p-6 transition-transform hover:scale-[1.02]">
+        <div className="glass-panel group relative overflow-hidden rounded-2xl p-4 sm:p-6 transition-transform hover:scale-[1.02]">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-200/50 transition-transform group-hover:scale-150" />
           <p className="relative text-xs uppercase tracking-wider text-slate-500">Total Campaigns</p>
-          <p className="relative font-heading text-4xl font-bold text-slate-900">{stats.campaigns}</p>
-          <p className="relative mt-1 text-sm text-amber-600">{stats.running} running</p>
+          <p className="relative font-heading text-3xl sm:text-4xl font-bold text-slate-900">{stats.campaigns}</p>
+          <p className="relative mt-1 text-xs sm:text-sm text-amber-600">{stats.running} running</p>
         </div>
 
-        <div className="glass-panel group relative overflow-hidden rounded-2xl p-6 transition-transform hover:scale-[1.02]">
+        <div className="glass-panel group relative overflow-hidden rounded-2xl p-4 sm:p-6 transition-transform hover:scale-[1.02]">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-amber-200/50 transition-transform group-hover:scale-150" />
           <p className="relative text-xs uppercase tracking-wider text-slate-500">Messages Sent</p>
-          <p className="relative font-heading text-4xl font-bold text-slate-900">{stats.totalSent}</p>
-          <p className="relative mt-1 text-sm text-rose-600">{stats.totalFailed} failed</p>
+          <p className="relative font-heading text-3xl sm:text-4xl font-bold text-slate-900">{stats.totalSent}</p>
+          <p className="relative mt-1 text-xs sm:text-sm text-rose-600">{stats.totalFailed} failed</p>
         </div>
 
-        <div className="glass-panel group relative overflow-hidden rounded-2xl p-6 transition-transform hover:scale-[1.02]">
+        <div className="glass-panel group relative overflow-hidden rounded-2xl p-4 sm:p-6 transition-transform hover:scale-[1.02]">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-violet-200/50 transition-transform group-hover:scale-150" />
           <p className="relative text-xs uppercase tracking-wider text-slate-500">Templates</p>
-          <p className="relative font-heading text-4xl font-bold text-slate-900">{stats.templates}</p>
-          <p className="relative mt-1 text-sm text-slate-600">reusable messages</p>
+          <p className="relative font-heading text-3xl sm:text-4xl font-bold text-slate-900">{stats.templates}</p>
+          <p className="relative mt-1 text-xs sm:text-sm text-slate-600">reusable messages</p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="glass-panel rounded-2xl p-6">
-          <h2 className="font-heading text-xl font-semibold text-slate-900">Recent Campaigns</h2>
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        <div className="glass-panel rounded-2xl p-4 sm:p-6">
+          <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">Recent Campaigns</h2>
           <div className="mt-4 space-y-3">
             {campaigns.slice(0, 5).map((campaign) => {
               const processed = campaign.sentCount + campaign.failedCount;
@@ -87,8 +87,8 @@ function DashboardPage({ stats, campaigns, accounts, refreshing, refreshAll }) {
           </div>
         </div>
 
-        <div className="glass-panel rounded-2xl p-6">
-          <h2 className="font-heading text-xl font-semibold text-slate-900">Active Sessions</h2>
+        <div className="glass-panel rounded-2xl p-4 sm:p-6">
+          <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">Active Sessions</h2>
           <div className="mt-4 space-y-3">
             {accounts.slice(0, 5).map((account) => (
               <div key={account._id} className="flex items-center justify-between rounded-xl bg-white/70 p-4">

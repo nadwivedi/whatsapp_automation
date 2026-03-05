@@ -68,16 +68,16 @@ function CampaignsPage({
   }
 
   return (
-    <section className="space-y-6">
-      <header className="flex items-center justify-between">
+    <section className="space-y-4 sm:space-y-6">
+      <header className="flex flex-wrap items-start sm:items-center justify-between gap-2">
         <div>
           <p className="font-heading text-xs uppercase tracking-[0.25em] text-slate-500">Manage</p>
-          <h1 className="font-heading text-3xl font-bold text-slate-800">Campaigns</h1>
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-800">Campaigns</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-600 text-2xl font-semibold text-white transition hover:bg-cyan-500"
+            className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-cyan-600 text-xl sm:text-2xl font-semibold text-white transition hover:bg-cyan-500"
             onClick={() => setShowCreatePopup(true)}
             aria-label="Add campaign"
             title="Add campaign"
@@ -90,11 +90,11 @@ function CampaignsPage({
         </div>
       </header>
 
-      <div className="glass-panel-dark rounded-2xl p-6">
+      <div className="glass-panel-dark rounded-2xl p-4 sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="font-heading text-lg font-semibold text-slate-800">Add Campaign</h2>
-            <p className="mt-1 text-sm text-slate-500">Click + to open campaign form popup.</p>
+            <p className="mt-1 text-xs sm:text-sm text-slate-500">Click + to open campaign form popup.</p>
           </div>
           <button type="button" className="btn-cyan" onClick={() => setShowCreatePopup(true)}>
             + Add Campaign
@@ -104,11 +104,11 @@ function CampaignsPage({
 
       {showCreatePopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowCreatePopup(false)}>
-          <div className="glass-panel-dark w-full max-w-5xl rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="glass-panel-dark w-full max-w-5xl rounded-2xl p-4 sm:p-6" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-heading text-xl font-semibold text-slate-800">Add Campaign</h2>
-                <p className="text-sm text-slate-500">Fill details and queue your campaign.</p>
+                <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-800">Add Campaign</h2>
+                <p className="text-xs sm:text-sm text-slate-500">Fill details and queue your campaign.</p>
               </div>
               <button
                 type="button"
@@ -122,7 +122,7 @@ function CampaignsPage({
               </button>
             </div>
 
-            <form className="grid gap-5 lg:grid-cols-2" onSubmit={createCampaign}>
+            <form className="grid gap-4 sm:gap-5 lg:grid-cols-2" onSubmit={createCampaign}>
               <div className="space-y-3">
                 <input
                   className="input-dark"
@@ -229,11 +229,11 @@ function CampaignsPage({
                     />
                   </div>
                 </div>
-                <div className="rounded-xl bg-slate-800/90 p-3 text-sm text-slate-300">
+                <div className="rounded-xl bg-slate-800/90 p-3 text-xs sm:text-sm text-slate-300">
                   Recipients: <span className="font-heading text-lg text-cyan-400">{recipientsTotal}</span>
                 </div>
                 <button
-                  className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-3 text-sm font-semibold text-white transition hover:from-slate-700 hover:to-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-white transition hover:from-slate-700 hover:to-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={busy === "create-campaign"}
                 >
                   {busy === "create-campaign" ? "Queueing..." : "Queue Campaign"}
@@ -249,14 +249,14 @@ function CampaignsPage({
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
           onClick={() => setShowEditPopup(false)}
         >
-          <div
-            className="glass-panel-dark w-full max-w-3xl rounded-2xl p-6"
+            <div
+            className="glass-panel-dark w-full max-w-3xl rounded-2xl p-4 sm:p-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-heading text-xl font-semibold text-slate-800">Edit Campaign</h2>
-                <p className="text-sm text-slate-500">
+                <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-800">Edit Campaign</h2>
+                <p className="text-xs sm:text-sm text-slate-500">
                   You can edit queued or paused campaigns.
                 </p>
               </div>
@@ -317,7 +317,7 @@ function CampaignsPage({
                 </div>
               </div>
               <button
-                className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-3 text-sm font-semibold text-white transition hover:from-slate-700 hover:to-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-white transition hover:from-slate-700 hover:to-slate-600 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={busy === `update-${editingCampaign._id}`}
               >
                 {busy === `update-${editingCampaign._id}` ? "Saving..." : "Save Changes"}
@@ -327,8 +327,8 @@ function CampaignsPage({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-        <div className="glass-panel-dark rounded-2xl p-6">
+      <div className="grid gap-4 sm:gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="glass-panel-dark rounded-2xl p-4 sm:p-6">
           <h2 className="font-heading text-lg font-semibold text-slate-800">All Campaigns</h2>
           <div className="mt-5 space-y-3">
             {campaigns.length === 0 && !dashboardLoading && <p className="empty-dark">No campaigns yet.</p>}
@@ -437,12 +437,12 @@ function CampaignsPage({
           </div>
         </div>
 
-        <div className="glass-panel-dark rounded-2xl p-6">
+        <div className="glass-panel-dark rounded-2xl p-4 sm:p-6">
           <h2 className="font-heading text-lg font-semibold text-slate-800">Delivery Detail</h2>
           {selectedCampaign ? (
             <p className="mt-1.5 text-xs text-slate-500">Campaign: {selectedCampaign.title}</p>
           ) : (
-            <p className="mt-1.5 text-sm text-slate-500">Select a campaign to inspect messages.</p>
+            <p className="mt-1.5 text-xs sm:text-sm text-slate-500">Select a campaign to inspect messages.</p>
           )}
           {selectedCampaign?.mediaData && (
             <div className="mt-3">
@@ -454,7 +454,7 @@ function CampaignsPage({
             </div>
           )}
           {messagesLoading ? (
-            <p className="mt-4 rounded-xl bg-slate-800/90 p-4 text-sm text-slate-300">Loading messages...</p>
+            <p className="mt-4 rounded-xl bg-slate-800/90 p-4 text-xs sm:text-sm text-slate-300">Loading messages...</p>
           ) : (
             <div className="mt-4 max-h-[460px] space-y-2 overflow-auto pr-1">
               {messages.length === 0 ? (
