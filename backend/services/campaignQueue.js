@@ -176,7 +176,6 @@ class CampaignQueue {
       mediaData,
       mediaFileName: payload.mediaFileName || null,
       maxMessages: payload.maxMessages || null,
-      dailyMessageLimit: payload.dailyMessageLimit || null,
       perRecipientMessageLimit,
       recipientPool: recipients,
       dateFrom: payload.dateFrom || null,
@@ -264,11 +263,6 @@ class CampaignQueue {
         return;
       }
       this.resetCampaignDailyWindowIfNeeded(campaign);
-      if (campaign.dailyMessageLimit && campaign.sentToday >= campaign.dailyMessageLimit) {
-        campaign.lastError = `Campaign 24h limit reached (${campaign.dailyMessageLimit}/24h).`;
-        await campaign.save();
-        return;
-      }
       const ownerSettings = await this.getOwnerSettings(campaign.owner);
 
       const messages = await CampaignMessage.find({

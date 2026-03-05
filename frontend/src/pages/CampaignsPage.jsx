@@ -28,7 +28,6 @@ function CampaignsPage({
   const [editForm, setEditForm] = useState({
     title: "",
     messageBody: "",
-    dailyMessageLimit: "",
     perRecipientMessageLimit: "1",
     dateFrom: "",
     dateTo: "",
@@ -43,8 +42,6 @@ function CampaignsPage({
     setEditForm({
       title: campaign.title || "",
       messageBody: campaign.messageBody || "",
-      dailyMessageLimit:
-        campaign.dailyMessageLimit == null ? "" : String(campaign.dailyMessageLimit),
       perRecipientMessageLimit: String(campaign.perRecipientMessageLimit || 1),
       dateFrom: campaign.dateFrom || "",
       dateTo: campaign.dateTo || "",
@@ -59,9 +56,6 @@ function CampaignsPage({
     const ok = await updateCampaign(editingCampaign._id, {
       title: editForm.title.trim(),
       messageBody: editForm.messageBody,
-      dailyMessageLimit: editForm.dailyMessageLimit
-        ? Number(editForm.dailyMessageLimit)
-        : undefined,
       perRecipientMessageLimit: Number(editForm.perRecipientMessageLimit || 1),
       dateFrom: editForm.dateFrom || undefined,
       dateTo: editForm.dateTo || undefined,
@@ -206,15 +200,6 @@ function CampaignsPage({
                     className="input-dark"
                     type="number"
                     min="1"
-                    max="5000"
-                    placeholder="Messages per day (optional)"
-                    value={campaignForm.dailyMessageLimit}
-                    onChange={(e) => setCampaignForm((p) => ({ ...p, dailyMessageLimit: e.target.value }))}
-                  />
-                  <input
-                    className="input-dark"
-                    type="number"
-                    min="1"
                     max="20"
                     placeholder="Messages per person"
                     value={campaignForm.perRecipientMessageLimit}
@@ -306,15 +291,6 @@ function CampaignsPage({
                   className="input-dark"
                   type="number"
                   min="1"
-                  max="5000"
-                  placeholder="Messages per day (optional)"
-                  value={editForm.dailyMessageLimit}
-                  onChange={(e) => setEditForm((p) => ({ ...p, dailyMessageLimit: e.target.value }))}
-                />
-                <input
-                  className="input-dark"
-                  type="number"
-                  min="1"
                   max="20"
                   placeholder="Messages per person"
                   value={editForm.perRecipientMessageLimit}
@@ -395,11 +371,6 @@ function CampaignsPage({
                     {campaign.maxMessages && (
                       <span className="rounded-full bg-sky-100 px-2.5 py-1 text-sky-700">
                         Target: {campaign.maxMessages}
-                      </span>
-                    )}
-                    {campaign.dailyMessageLimit && (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-700">
-                        Per day: {campaign.dailyMessageLimit}
                       </span>
                     )}
                     <span className="rounded-full bg-fuchsia-100 px-2.5 py-1 text-fuchsia-700">

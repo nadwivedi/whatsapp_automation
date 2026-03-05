@@ -70,7 +70,6 @@ export function useWhatsAppManager() {
     messageBody: "",
     recipientsText: "",
     maxMessages: "",
-    dailyMessageLimit: "",
     perRecipientMessageLimit: "1",
     dateFrom: "",
     dateTo: "",
@@ -461,9 +460,6 @@ export function useWhatsAppManager() {
         messageBody: selectedTemplate.body || "",
         recipientsText: campaignForm.recipientsText,
         maxMessages: Number(campaignForm.maxMessages),
-        dailyMessageLimit: campaignForm.dailyMessageLimit
-          ? Number(campaignForm.dailyMessageLimit)
-          : undefined,
         perRecipientMessageLimit: Number(campaignForm.perRecipientMessageLimit || 1),
         dateFrom: campaignForm.dateFrom || undefined,
         dateTo: campaignForm.dateTo || undefined,
@@ -473,7 +469,6 @@ export function useWhatsAppManager() {
         title: "",
         recipientsText: "",
         maxMessages: "",
-        dailyMessageLimit: "",
         perRecipientMessageLimit: "1",
         dateFrom: "",
         dateTo: "",

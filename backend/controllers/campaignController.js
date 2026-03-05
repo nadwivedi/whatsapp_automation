@@ -202,10 +202,6 @@ async function createCampaign(req, res) {
     req.body?.maxMessages == null || req.body?.maxMessages === ""
       ? null
       : Number(req.body.maxMessages);
-  const dailyMessageLimit =
-    req.body?.dailyMessageLimit == null || req.body?.dailyMessageLimit === ""
-      ? null
-      : Number(req.body.dailyMessageLimit);
   const perRecipientMessageLimit =
     req.body?.perRecipientMessageLimit == null || req.body?.perRecipientMessageLimit === ""
       ? DEFAULT_PER_RECIPIENT_MESSAGE_LIMIT
@@ -271,12 +267,6 @@ async function createCampaign(req, res) {
     return res.status(400).json({ message: "maxMessages must be between 1 and 5000." });
   }
   if (
-    dailyMessageLimit != null &&
-    (!Number.isFinite(dailyMessageLimit) || dailyMessageLimit < 1 || dailyMessageLimit > 5000)
-  ) {
-    return res.status(400).json({ message: "dailyMessageLimit must be between 1 and 5000." });
-  }
-  if (
     !Number.isFinite(perRecipientMessageLimit) ||
     perRecipientMessageLimit < 1 ||
     perRecipientMessageLimit > MAX_PER_RECIPIENT_MESSAGE_LIMIT
@@ -318,7 +308,6 @@ async function createCampaign(req, res) {
     mediaMimeType,
     mediaFileName,
     maxMessages,
-    dailyMessageLimit,
     perRecipientMessageLimit: Math.floor(perRecipientMessageLimit),
     dateFrom,
     dateTo,
@@ -385,10 +374,6 @@ async function updateCampaign(req, res) {
   const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
   const messageBody =
     typeof req.body?.messageBody === "string" ? req.body.messageBody.trim() : "";
-  const dailyMessageLimit =
-    req.body?.dailyMessageLimit == null || req.body?.dailyMessageLimit === ""
-      ? null
-      : Number(req.body.dailyMessageLimit);
   const perRecipientMessageLimit =
     req.body?.perRecipientMessageLimit == null || req.body?.perRecipientMessageLimit === ""
       ? null
@@ -409,12 +394,6 @@ async function updateCampaign(req, res) {
   }
   if (!messageBody && !campaign.mediaData) {
     return res.status(400).json({ message: "Campaign needs message text or media." });
-  }
-  if (
-    dailyMessageLimit != null &&
-    (!Number.isFinite(dailyMessageLimit) || dailyMessageLimit < 1 || dailyMessageLimit > 5000)
-  ) {
-    return res.status(400).json({ message: "dailyMessageLimit must be between 1 and 5000." });
   }
   if (
     perRecipientMessageLimit != null &&
@@ -466,7 +445,6 @@ async function updateCampaign(req, res) {
 
   campaign.title = title;
   campaign.messageBody = messageBody;
-  campaign.dailyMessageLimit = dailyMessageLimit;
   campaign.perRecipientMessageLimit = nextPerRecipientMessageLimit;
   campaign.dateFrom = dateFrom;
   campaign.dateTo = dateTo;
