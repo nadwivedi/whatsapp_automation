@@ -54,6 +54,9 @@ async function createCampaign(req, res) {
   if (!accountId) {
     return res.status(400).json({ message: "accountId is required." });
   }
+  if (maxMessages == null) {
+    return res.status(400).json({ message: "maxMessages is required." });
+  }
 
   const account = await WaAccount.findOne({
     _id: accountId,
@@ -84,7 +87,7 @@ async function createCampaign(req, res) {
   if (!normalizedBody && !mediaData) {
     return res.status(400).json({ message: "Campaign needs message text or media." });
   }
-  if (maxMessages != null && (!Number.isFinite(maxMessages) || maxMessages < 1 || maxMessages > 5000)) {
+  if (!Number.isFinite(maxMessages) || maxMessages < 1 || maxMessages > 5000) {
     return res.status(400).json({ message: "maxMessages must be between 1 and 5000." });
   }
   if (

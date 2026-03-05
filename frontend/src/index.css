@@ -26,6 +26,10 @@ body {
     @apply border border-white/70 bg-white/76 shadow-[0_22px_60px_-32px_rgba(15,23,42,0.45)] backdrop-blur-xl;
   }
 
+  .glass-panel-dark {
+    @apply border border-slate-300/60 bg-slate-100/80 shadow-[0_22px_60px_-32px_rgba(15,23,42,0.55)] backdrop-blur-xl;
+  }
+
   .font-heading {
     font-family: "Sora", "Segoe UI", sans-serif;
   }
@@ -47,12 +51,24 @@ body {
     @apply rounded-2xl border border-white/70 bg-white/72 p-4;
   }
 
+  .card-dark {
+    @apply rounded-xl border border-slate-300/50 bg-slate-200/70 p-4;
+  }
+
   .empty {
     @apply rounded-xl bg-white/70 p-4 text-sm text-slate-500;
   }
 
+  .empty-dark {
+    @apply rounded-xl bg-slate-200/70 p-4 text-sm text-slate-500;
+  }
+
   .input {
     @apply w-full rounded-xl border border-white/75 bg-white/80 px-3 py-2 text-sm outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-200;
+  }
+
+  .input-dark {
+    @apply w-full rounded-xl border border-slate-300/60 bg-slate-100/90 px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-300/50;
   }
 
   .btn-cyan {

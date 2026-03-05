@@ -369,6 +369,10 @@ export function useWhatsAppManager() {
 
   async function createCampaign(e) {
     e.preventDefault();
+    if (!campaignForm.maxMessages) {
+      setNotice({ type: "error", text: "Total messages to send is required." });
+      return;
+    }
     if (campaignForm.dateFrom && campaignForm.dateTo && campaignForm.dateFrom > campaignForm.dateTo) {
       setNotice({ type: "error", text: "Campaign From date cannot be later than Campaign To date." });
       return;
@@ -381,7 +385,7 @@ export function useWhatsAppManager() {
         templateId: campaignForm.templateId || undefined,
         messageBody: campaignForm.messageBody,
         recipientsText: campaignForm.recipientsText,
-        maxMessages: campaignForm.maxMessages ? Number(campaignForm.maxMessages) : undefined,
+        maxMessages: Number(campaignForm.maxMessages),
         dailyMessageLimit: campaignForm.dailyMessageLimit
           ? Number(campaignForm.dailyMessageLimit)
           : undefined,
