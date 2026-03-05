@@ -1,10 +1,11 @@
 const MessageTemplate = require("../models/MessageTemplate");
 const { Campaign } = require("../models/Campaign");
 const { CampaignMessage } = require("../models/CampaignMessage");
+const { WaAccount } = require("../models/WaAccount");
 const campaignQueue = require("../services/campaignQueue");
 
-async function listCampaigns(_req, res) {
-  const campaigns = await Campaign.find()
+async function listCampaigns(req, res) {
+  const campaigns = await Campaign.find({ owner: req.user._id })
     .sort({ createdAt: -1 })
     .populate("account", "name phoneNumber status dailyLimit sentToday")
     .populate("template", "name body")
@@ -13,8 +14,18 @@ async function listCampaigns(_req, res) {
 }
 
 async function listCampaignMessages(req, res) {
+  const campaign = await Campaign.findOne({
+    _id: req.params.campaignId,
+    owner: req.user._id,
+  }).select("_id");
+
+  if (!campaign) {
+    return res.status(404).json({ message: "Campaign not found." });
+  }
+
   const messages = await CampaignMessage.find({
-    campaign: req.params.campaignId,
+    owner: req.user._id,
+    campaign: campaign._id,
   })
     .sort({ createdAt: 1 })
     .limit(2000);
@@ -30,8 +41,19 @@ async function createCampaign(req, res) {
     return res.status(400).json({ message: "accountId is required." });
   }
 
+  const account = await WaAccount.findOne({
+    _id: accountId,
+    owner: req.user._id,
+  }).select("_id");
+  if (!account) {
+    return res.status(400).json({ message: "Selected WhatsApp account is invalid." });
+  }
+
   if (templateId && !messageBody) {
-    const template = await MessageTemplate.findById(templateId);
+    const template = await MessageTemplate.findOne({
+      _id: templateId,
+      owner: req.user._id,
+    });
     if (!template || !template.isActive) {
       return res.status(400).json({ message: "Selected template is invalid or inactive." });
     }
@@ -43,6 +65,7 @@ async function createCampaign(req, res) {
   }
 
   const campaign = await campaignQueue.enqueueCampaign({
+    ownerId: req.user._id,
     title,
     accountId,
     templateId: templateId || null,
@@ -58,7 +81,10 @@ async function createCampaign(req, res) {
 }
 
 async function pauseCampaign(req, res) {
-  const campaign = await Campaign.findById(req.params.campaignId);
+  const campaign = await Campaign.findOne({
+    _id: req.params.campaignId,
+    owner: req.user._id,
+  });
   if (!campaign) {
     return res.status(404).json({ message: "Campaign not found." });
   }
@@ -72,7 +98,10 @@ async function pauseCampaign(req, res) {
 }
 
 async function resumeCampaign(req, res) {
-  const campaign = await Campaign.findById(req.params.campaignId);
+  const campaign = await Campaign.findOne({
+    _id: req.params.campaignId,
+    owner: req.user._id,
+  });
   if (!campaign) {
     return res.status(404).json({ message: "Campaign not found." });
   }

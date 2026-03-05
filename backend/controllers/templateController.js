@@ -1,7 +1,10 @@
 const MessageTemplate = require("../models/MessageTemplate");
 
-async function listTemplates(_req, res) {
-  const templates = await MessageTemplate.find({ isActive: true }).sort({ updatedAt: -1 });
+async function listTemplates(req, res) {
+  const templates = await MessageTemplate.find({
+    owner: req.user._id,
+    isActive: true,
+  }).sort({ updatedAt: -1 });
   res.json({ templates });
 }
 
@@ -12,6 +15,7 @@ async function createTemplate(req, res) {
   }
 
   const template = await MessageTemplate.create({
+    owner: req.user._id,
     name: String(name).trim(),
     body: String(body).trim(),
   });
@@ -32,9 +36,13 @@ async function updateTemplate(req, res) {
     update.isActive = req.body.isActive;
   }
 
-  const template = await MessageTemplate.findByIdAndUpdate(templateId, update, {
+  const template = await MessageTemplate.findOneAndUpdate(
+    { _id: templateId, owner: req.user._id },
+    update,
+    {
     returnDocument: "after",
-  });
+    },
+  );
 
   if (!template) {
     return res.status(404).json({ message: "Template not found." });
@@ -44,8 +52,8 @@ async function updateTemplate(req, res) {
 }
 
 async function disableTemplate(req, res) {
-  const template = await MessageTemplate.findByIdAndUpdate(
-    req.params.templateId,
+  const template = await MessageTemplate.findOneAndUpdate(
+    { _id: req.params.templateId, owner: req.user._id },
     { isActive: false },
     { returnDocument: "after" },
   );

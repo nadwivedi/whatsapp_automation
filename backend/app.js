@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const requireAuth = require("./middleware/requireAuth");
+const authRoutes = require("./routes/authRoutes");
 const accountRoutes = require("./routes/accountRoutes");
 const templateRoutes = require("./routes/templateRoutes");
 const campaignRoutes = require("./routes/campaignRoutes");
@@ -27,9 +29,10 @@ app.get("/", (_req, res) => {
   });
 });
 
-app.use("/api/accounts", accountRoutes);
-app.use("/api/templates", templateRoutes);
-app.use("/api/campaigns", campaignRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/accounts", requireAuth, accountRoutes);
+app.use("/api/templates", requireAuth, templateRoutes);
+app.use("/api/campaigns", requireAuth, campaignRoutes);
 
 app.use((err, _req, res, _next) => {
   const message = err?.message || "Unexpected server error.";

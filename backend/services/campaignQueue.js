@@ -53,7 +53,14 @@ class CampaignQueue {
       throw new Error("Recipient list too large. Keep it <= 5000 numbers per campaign.");
     }
 
-    const account = await WaAccount.findById(payload.accountId);
+    if (!payload.ownerId) {
+      throw new Error("ownerId is required.");
+    }
+
+    const account = await WaAccount.findOne({
+      _id: payload.accountId,
+      owner: payload.ownerId,
+    });
     if (!account || !account.isActive) {
       throw new Error("Selected WhatsApp account does not exist.");
     }
@@ -66,6 +73,7 @@ class CampaignQueue {
     const title = (payload.title || "").trim() || `Campaign ${new Date().toLocaleString()}`;
 
     const campaign = await Campaign.create({
+      owner: payload.ownerId,
       account: account._id,
       template: payload.templateId || null,
       title,
@@ -76,6 +84,7 @@ class CampaignQueue {
     });
 
     const docs = recipients.map((recipient) => ({
+      owner: payload.ownerId,
       campaign: campaign._id,
       account: account._id,
       recipient,
@@ -121,14 +130,28 @@ class CampaignQueue {
       }
 
       const account = await WaAccount.findById(campaign.account);
+      const accountOwnerMismatch =
+        account && String(account.owner) !== String(campaign.owner);
       if (!account) {
         campaign.status = "failed";
         campaign.lastError = "Source WhatsApp account is missing.";
         campaign.completedAt = new Date();
         await campaign.save();
         await CampaignMessage.updateMany(
-          { campaign: campaign._id, status: "pending" },
+          { owner: campaign.owner, campaign: campaign._id, status: "pending" },
           { $set: { status: "failed", error: "Account not found." } },
+        );
+        return;
+      }
+
+      if (accountOwnerMismatch) {
+        campaign.status = "failed";
+        campaign.lastError = "Campaign ownership mismatch with account.";
+        campaign.completedAt = new Date();
+        await campaign.save();
+        await CampaignMessage.updateMany(
+          { owner: campaign.owner, campaign: campaign._id, status: "pending" },
+          { $set: { status: "failed", error: "Campaign ownership mismatch." } },
         );
         return;
       }
@@ -151,6 +174,7 @@ class CampaignQueue {
       }
 
       const message = await CampaignMessage.findOne({
+        owner: campaign.owner,
         campaign: campaign._id,
         status: "pending",
       }).sort({ createdAt: 1 });

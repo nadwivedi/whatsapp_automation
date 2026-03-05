@@ -4,12 +4,13 @@ const { CampaignMessage } = require("../models/CampaignMessage");
 const whatsappSessionManager = require("../services/whatsappSessionManager");
 const DUMMY_NAME_PATTERN = /\b(dummy|demo|sample|test)\b/i;
 
-async function cleanupCampaignDataForAccounts(accountIds) {
+async function cleanupCampaignDataForAccounts(ownerId, accountIds) {
   if (!accountIds.length) {
     return { campaignsRemoved: 0, messagesRemoved: 0 };
   }
 
   const campaigns = await Campaign.find({
+    owner: ownerId,
     account: { $in: accountIds },
   }).select("_id");
   const campaignIds = campaigns.map((campaign) => campaign._id);
@@ -17,12 +18,14 @@ async function cleanupCampaignDataForAccounts(accountIds) {
   let messagesRemoved = 0;
   if (campaignIds.length) {
     const messagesDeleteResult = await CampaignMessage.deleteMany({
+      owner: ownerId,
       campaign: { $in: campaignIds },
     });
     messagesRemoved = messagesDeleteResult.deletedCount || 0;
   }
 
   const campaignsDeleteResult = await Campaign.deleteMany({
+    owner: ownerId,
     account: { $in: accountIds },
   });
 
@@ -32,8 +35,8 @@ async function cleanupCampaignDataForAccounts(accountIds) {
   };
 }
 
-async function listAccounts(_req, res) {
-  const accounts = await WaAccount.find().sort({ createdAt: -1 });
+async function listAccounts(req, res) {
+  const accounts = await WaAccount.find({ owner: req.user._id }).sort({ createdAt: -1 });
   res.json({ accounts });
 }
 
@@ -65,6 +68,7 @@ async function createAccount(req, res) {
   }
 
   const account = await WaAccount.create({
+    owner: req.user._id,
     name: resolvedName,
     phoneNumber: cleanedPhone || null,
     dailyLimit: limit,
@@ -85,7 +89,7 @@ async function createAccount(req, res) {
 
 async function startAccountSession(req, res) {
   const { accountId } = req.params;
-  const account = await WaAccount.findById(accountId);
+  const account = await WaAccount.findOne({ _id: accountId, owner: req.user._id });
   if (!account) {
     return res.status(404).json({ message: "Account not found." });
   }
@@ -97,7 +101,7 @@ async function startAccountSession(req, res) {
 
 async function stopAccountSession(req, res) {
   const { accountId } = req.params;
-  const account = await WaAccount.findById(accountId);
+  const account = await WaAccount.findOne({ _id: accountId, owner: req.user._id });
   if (!account) {
     return res.status(404).json({ message: "Account not found." });
   }
@@ -115,7 +119,7 @@ async function updateDailyLimit(req, res) {
   }
 
   const updated = await WaAccount.findByIdAndUpdate(
-    accountId,
+    { _id: accountId, owner: req.user._id },
     { dailyLimit: limit },
     { returnDocument: "after" },
   );
@@ -128,7 +132,10 @@ async function updateDailyLimit(req, res) {
 }
 
 async function getAccountQr(req, res) {
-  const account = await WaAccount.findById(req.params.accountId);
+  const account = await WaAccount.findOne({
+    _id: req.params.accountId,
+    owner: req.user._id,
+  });
   if (!account) {
     return res.status(404).json({ message: "Account not found." });
   }
@@ -143,14 +150,14 @@ async function getAccountQr(req, res) {
 
 async function deleteAccount(req, res) {
   const { accountId } = req.params;
-  const account = await WaAccount.findById(accountId);
+  const account = await WaAccount.findOne({ _id: accountId, owner: req.user._id });
   if (!account) {
     return res.status(404).json({ message: "Account not found." });
   }
 
   await whatsappSessionManager.stopSession(accountId).catch(() => {});
-  const cleanup = await cleanupCampaignDataForAccounts([accountId]);
-  await WaAccount.deleteOne({ _id: accountId });
+  const cleanup = await cleanupCampaignDataForAccounts(req.user._id, [accountId]);
+  await WaAccount.deleteOne({ _id: accountId, owner: req.user._id });
 
   return res.json({
     deletedAccountId: accountId,
@@ -158,8 +165,11 @@ async function deleteAccount(req, res) {
   });
 }
 
-async function deleteDummyAccounts(_req, res) {
-  const dummyAccounts = await WaAccount.find({ name: DUMMY_NAME_PATTERN }).select("_id");
+async function deleteDummyAccounts(req, res) {
+  const dummyAccounts = await WaAccount.find({
+    owner: req.user._id,
+    name: DUMMY_NAME_PATTERN,
+  }).select("_id");
   const ids = dummyAccounts.map((account) => account._id);
 
   if (!ids.length) {
@@ -171,8 +181,8 @@ async function deleteDummyAccounts(_req, res) {
   }
 
   await Promise.all(ids.map((accountId) => whatsappSessionManager.stopSession(accountId).catch(() => {})));
-  const cleanup = await cleanupCampaignDataForAccounts(ids);
-  const deleteResult = await WaAccount.deleteMany({ _id: { $in: ids } });
+  const cleanup = await cleanupCampaignDataForAccounts(req.user._id, ids);
+  const deleteResult = await WaAccount.deleteMany({ owner: req.user._id, _id: { $in: ids } });
 
   return res.json({
     deletedAccounts: deleteResult.deletedCount || 0,

@@ -4,6 +4,12 @@ const CAMPAIGN_STATUSES = ["queued", "running", "paused", "completed", "failed"]
 
 const campaignSchema = new mongoose.Schema(
   {
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
     account: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "WaAccount",

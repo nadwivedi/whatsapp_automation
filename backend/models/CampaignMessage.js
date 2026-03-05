@@ -4,6 +4,12 @@ const MESSAGE_STATUSES = ["pending", "sent", "failed"];
 
 const campaignMessageSchema = new mongoose.Schema(
   {
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
     campaign: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Campaign",
