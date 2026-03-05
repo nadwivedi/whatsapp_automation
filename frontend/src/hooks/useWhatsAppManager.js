@@ -19,7 +19,16 @@ import {
   resumeCampaign,
   updateCampaign as updateCampaignApi,
 } from "../api/campaignsApi";
+import {
+  getSettings as getSettingsApi,
+  updateSettings as updateSettingsApi,
+} from "../api/settingsApi";
 import { countRecipients } from "../utils/formatters";
+
+const DEFAULT_SETTINGS = {
+  perMobileDailyLimit: 20,
+  perMobileHourlyLimit: 2,
+};
 
 export function useWhatsAppManager() {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || "");
@@ -62,11 +71,11 @@ export function useWhatsAppManager() {
     recipientsText: "",
     maxMessages: "",
     dailyMessageLimit: "",
+    perRecipientMessageLimit: "1",
     dateFrom: "",
     dateTo: "",
-    perNumberDailySafeguard: "20",
-    perNumberHourlySafeguard: "2",
   });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
   const stats = useMemo(() => {
     const authenticated = accounts.filter((a) => a.status === "authenticated").length;
@@ -94,6 +103,11 @@ export function useWhatsAppManager() {
   );
 
   useEffect(() => {
+    const daily = String(settings.perMobileDailyLimit || DEFAULT_SETTINGS.perMobileDailyLimit);
+    setAccountForm((prev) => (prev.phoneNumber ? prev : { ...prev, dailyLimit: daily }));
+  }, [settings.perMobileDailyLimit]);
+
+  useEffect(() => {
     if (!notice) return undefined;
     const timer = window.setTimeout(() => setNotice(null), 4500);
     return () => window.clearTimeout(timer);
@@ -111,6 +125,7 @@ export function useWhatsAppManager() {
       setAllMessages([]);
       setSelectedCampaign(null);
       setMessages([]);
+      setSettings(DEFAULT_SETTINGS);
       return undefined;
     }
 
@@ -134,16 +149,18 @@ export function useWhatsAppManager() {
         else setDashboardLoading(true);
       }
       try {
-        const [a, t, c] = await Promise.all([
+        const [a, t, c, s] = await Promise.all([
           listAccounts(activeToken, onUnauthorized),
           listTemplates(activeToken, onUnauthorized),
           listCampaigns(activeToken, onUnauthorized),
+          getSettingsApi(activeToken, onUnauthorized),
         ]);
 
         if (!cancelled) {
           setAccounts(a.accounts || []);
           setTemplates(t.templates || []);
           setCampaigns(c.campaigns || []);
+          setSettings(s.settings || DEFAULT_SETTINGS);
           setDailyDrafts((prev) => {
             const next = { ...prev };
             for (const account of a.accounts || []) {
@@ -181,16 +198,18 @@ export function useWhatsAppManager() {
     if (!token) return;
     setRefreshing(true);
     try {
-      const [profilePayload, a, t, c] = await Promise.all([
+      const [profilePayload, a, t, c, s] = await Promise.all([
         getMe(token),
         listAccounts(token),
         listTemplates(token),
         listCampaigns(token),
+        getSettingsApi(token),
       ]);
       setProfile(profilePayload);
       setAccounts(a.accounts || []);
       setTemplates(t.templates || []);
       setCampaigns(c.campaigns || []);
+      setSettings(s.settings || DEFAULT_SETTINGS);
     } catch (error) {
       setNotice({ type: "error", text: error.message });
     } finally {
@@ -258,7 +277,10 @@ export function useWhatsAppManager() {
         dailyLimit: Number(accountForm.dailyLimit),
       });
 
-      setAccountForm({ phoneNumber: "", dailyLimit: 20 });
+      setAccountForm({
+        phoneNumber: "",
+        dailyLimit: settings.perMobileDailyLimit || DEFAULT_SETTINGS.perMobileDailyLimit,
+      });
       await refreshAll();
       setNotice({ type: "success", text: "Session created. Scan QR to authenticate." });
 
@@ -296,6 +318,21 @@ export function useWhatsAppManager() {
       await refreshAll();
     } catch (error) {
       setNotice({ type: "error", text: error.message });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveSettings(payload) {
+    setBusy("save-settings");
+    try {
+      const response = await updateSettingsApi(token, payload);
+      setSettings(response.settings || DEFAULT_SETTINGS);
+      setNotice({ type: "success", text: "Settings saved." });
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
     } finally {
       setBusy("");
     }
@@ -408,10 +445,9 @@ export function useWhatsAppManager() {
         dailyMessageLimit: campaignForm.dailyMessageLimit
           ? Number(campaignForm.dailyMessageLimit)
           : undefined,
+        perRecipientMessageLimit: Number(campaignForm.perRecipientMessageLimit || 1),
         dateFrom: campaignForm.dateFrom || undefined,
         dateTo: campaignForm.dateTo || undefined,
-        perNumberDailySafeguard: Number(campaignForm.perNumberDailySafeguard || 20),
-        perNumberHourlySafeguard: Number(campaignForm.perNumberHourlySafeguard || 2),
       });
       setCampaignForm((prev) => ({
         ...prev,
@@ -419,10 +455,9 @@ export function useWhatsAppManager() {
         recipientsText: "",
         maxMessages: "",
         dailyMessageLimit: "",
+        perRecipientMessageLimit: "1",
         dateFrom: "",
         dateTo: "",
-        perNumberDailySafeguard: "20",
-        perNumberHourlySafeguard: "2",
       }));
       setNotice({ type: "success", text: "Campaign queued." });
       await refreshAll();
@@ -534,6 +569,7 @@ export function useWhatsAppManager() {
     accountForm,
     templateForm,
     campaignForm,
+    settings,
     stats,
     recipientsTotal,
 
@@ -552,6 +588,7 @@ export function useWhatsAppManager() {
     createAccount,
     accountAction,
     updateDailyLimit,
+    saveSettings,
     showQr,
     refreshQrPreview,
     removeAccount,

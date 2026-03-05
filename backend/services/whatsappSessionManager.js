@@ -176,6 +176,26 @@ class WhatsappSessionManager {
     return recipient.replace(/[^\d]/g, "");
   }
 
+  async resolveRecipientChatId(client, normalized) {
+    const candidates = [normalized, `+${normalized}`];
+    for (const candidate of candidates) {
+      try {
+        const numberId = await client.getNumberId(candidate);
+        if (numberId?._serialized) {
+          return numberId._serialized;
+        }
+      } catch (error) {
+        if (typeof error?.message === "string" && error.message.includes("No LID for user")) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    // Fallback path: let sendMessage validate registration directly.
+    return `${normalized}@c.us`;
+  }
+
   async sendTextMessage(accountId, recipient, text) {
     const client = this.getClient(accountId);
     if (!client) {
@@ -188,12 +208,8 @@ class WhatsappSessionManager {
     }
 
     try {
-      const numberId = await client.getNumberId(normalized);
-      if (!numberId?._serialized) {
-        throw new Error(`Recipient ${normalized} is not a valid WhatsApp number.`);
-      }
-
-      const result = await client.sendMessage(numberId._serialized, text);
+      const chatId = await this.resolveRecipientChatId(client, normalized);
+      const result = await client.sendMessage(chatId, text);
       return result?.id?._serialized || null;
     } catch (error) {
       if (this.isRecoverableProtocolError(error)) {
@@ -204,6 +220,13 @@ class WhatsappSessionManager {
         throw new Error("Session context was reset. Please open Show QR and reconnect.");
       }
       if (typeof error?.message === "string" && error.message.includes("No LID for user")) {
+        throw new Error(`Recipient ${normalized} is not reachable on WhatsApp.`);
+      }
+      if (
+        typeof error?.message === "string" &&
+        (error.message.includes("invalid wid") ||
+          error.message.includes("not a valid WhatsApp number"))
+      ) {
         throw new Error(`Recipient ${normalized} is not reachable on WhatsApp.`);
       }
       throw error;
@@ -238,10 +261,7 @@ class WhatsappSessionManager {
     }
 
     try {
-      const numberId = await client.getNumberId(normalized);
-      if (!numberId?._serialized) {
-        throw new Error(`Recipient ${normalized} is not a valid WhatsApp number.`);
-      }
+      const chatId = await this.resolveRecipientChatId(client, normalized);
 
       const parsed = this.parseMediaDataUrl(media?.mediaData, media?.mediaMimeType);
       const messageMedia = new MessageMedia(
@@ -250,7 +270,7 @@ class WhatsappSessionManager {
         media?.mediaFileName || undefined,
       );
 
-      const result = await client.sendMessage(numberId._serialized, messageMedia, {
+      const result = await client.sendMessage(chatId, messageMedia, {
         caption: caption || undefined,
       });
       return result?.id?._serialized || null;
@@ -263,6 +283,13 @@ class WhatsappSessionManager {
         throw new Error("Session context was reset. Please open Show QR and reconnect.");
       }
       if (typeof error?.message === "string" && error.message.includes("No LID for user")) {
+        throw new Error(`Recipient ${normalized} is not reachable on WhatsApp.`);
+      }
+      if (
+        typeof error?.message === "string" &&
+        (error.message.includes("invalid wid") ||
+          error.message.includes("not a valid WhatsApp number"))
+      ) {
         throw new Error(`Recipient ${normalized} is not reachable on WhatsApp.`);
       }
       throw error;

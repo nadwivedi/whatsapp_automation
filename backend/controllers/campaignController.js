@@ -3,6 +3,153 @@ const { Campaign } = require("../models/Campaign");
 const { CampaignMessage } = require("../models/CampaignMessage");
 const { WaAccount } = require("../models/WaAccount");
 const campaignQueue = require("../services/campaignQueue");
+const MAX_PER_RECIPIENT_MESSAGE_LIMIT = 20;
+const DEFAULT_PER_RECIPIENT_MESSAGE_LIMIT = 1;
+
+function uniqueRecipients(values = []) {
+  return [...new Set(values.filter(Boolean).map((value) => String(value).trim()).filter(Boolean))];
+}
+
+function buildRecipientSendPlan(recipientPool, maxMessages, perRecipientMessageLimit) {
+  const pool = uniqueRecipients(recipientPool);
+  const capPerRecipient = Number.isFinite(Number(perRecipientMessageLimit))
+    ? Math.max(1, Math.floor(Number(perRecipientMessageLimit)))
+    : DEFAULT_PER_RECIPIENT_MESSAGE_LIMIT;
+  const hardCapByRecipient = pool.length * capPerRecipient;
+  const targetTotal = Number.isFinite(Number(maxMessages))
+    ? Math.min(Math.floor(Number(maxMessages)), hardCapByRecipient)
+    : hardCapByRecipient;
+
+  const plan = [];
+  for (let round = 0; round < capPerRecipient && plan.length < targetTotal; round += 1) {
+    for (const recipient of pool) {
+      if (plan.length >= targetTotal) break;
+      plan.push(recipient);
+    }
+  }
+  return plan;
+}
+
+function mapCountByRecipient(recipients = []) {
+  const counts = new Map();
+  for (const recipient of recipients) {
+    counts.set(recipient, (counts.get(recipient) || 0) + 1);
+  }
+  return counts;
+}
+
+function toAccountIdList(campaign) {
+  if (Array.isArray(campaign.accounts) && campaign.accounts.length) {
+    return campaign.accounts.map((value) => String(value));
+  }
+  if (campaign.account) {
+    return [String(campaign.account)];
+  }
+  return [];
+}
+
+async function rebalancePendingMessagesForRecipientLimit(campaign, ownerId) {
+  const allMessages = await CampaignMessage.find({
+    owner: ownerId,
+    campaign: campaign._id,
+  })
+    .sort({ createdAt: 1 })
+    .select("_id recipient recipientMobileNumber status account");
+
+  const fallbackPool = uniqueRecipients(allMessages.map((message) => message.recipient));
+  const recipientPool = uniqueRecipients(campaign.recipientPool?.length ? campaign.recipientPool : fallbackPool);
+  if (!recipientPool.length) {
+    return;
+  }
+
+  const desiredPlan = buildRecipientSendPlan(
+    recipientPool,
+    campaign.maxMessages,
+    campaign.perRecipientMessageLimit || DEFAULT_PER_RECIPIENT_MESSAGE_LIMIT,
+  );
+  const desiredCounts = mapCountByRecipient(desiredPlan);
+
+  const currentCounts = new Map();
+  const pendingByRecipient = new Map();
+
+  for (const message of allMessages) {
+    const recipient = message.recipient;
+    currentCounts.set(recipient, (currentCounts.get(recipient) || 0) + 1);
+    if (message.status === "pending") {
+      if (!pendingByRecipient.has(recipient)) pendingByRecipient.set(recipient, []);
+      pendingByRecipient.get(recipient).push(message);
+    }
+  }
+
+  const idsToDelete = [];
+  for (const recipient of recipientPool) {
+    const desired = desiredCounts.get(recipient) || 0;
+    const current = currentCounts.get(recipient) || 0;
+    if (current <= desired) continue;
+
+    const removable = Math.min(current - desired, (pendingByRecipient.get(recipient) || []).length);
+    if (!removable) continue;
+
+    const pendingMessages = (pendingByRecipient.get(recipient) || []).slice().reverse();
+    for (let i = 0; i < removable; i += 1) {
+      const candidate = pendingMessages[i];
+      if (!candidate) break;
+      idsToDelete.push(candidate._id);
+    }
+    currentCounts.set(recipient, current - removable);
+  }
+
+  if (idsToDelete.length) {
+    await CampaignMessage.deleteMany({
+      owner: ownerId,
+      campaign: campaign._id,
+      _id: { $in: idsToDelete },
+      status: "pending",
+    });
+  }
+
+  const accountIds = toAccountIdList(campaign);
+  if (!accountIds.length) {
+    throw new Error("Campaign has no sending account configured.");
+  }
+
+  const docsToInsert = [];
+  let accountCursor = 0;
+  for (const recipient of recipientPool) {
+    const desired = desiredCounts.get(recipient) || 0;
+    const current = currentCounts.get(recipient) || 0;
+    const toAdd = Math.max(0, desired - current);
+
+    for (let i = 0; i < toAdd; i += 1) {
+      docsToInsert.push({
+        owner: ownerId,
+        campaign: campaign._id,
+        account: accountIds[accountCursor % accountIds.length],
+        recipient,
+        recipientMobileNumber: recipient,
+        text: campaign.messageBody || "",
+        status: "pending",
+      });
+      accountCursor += 1;
+    }
+  }
+
+  if (docsToInsert.length) {
+    await CampaignMessage.insertMany(docsToInsert);
+  }
+
+  const [totalRecipients, queuedCount, sentCount, failedCount] = await Promise.all([
+    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id }),
+    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "pending" }),
+    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "sent" }),
+    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "failed" }),
+  ]);
+
+  campaign.totalRecipients = totalRecipients;
+  campaign.queuedCount = queuedCount;
+  campaign.sentCount = sentCount;
+  campaign.failedCount = failedCount;
+}
 
 async function listCampaigns(req, res) {
   const campaigns = await Campaign.find({ owner: req.user._id })
@@ -28,10 +175,20 @@ async function listCampaignMessages(req, res) {
     owner: req.user._id,
     campaign: campaign._id,
   })
+    .populate("account", "phoneNumber")
     .sort({ createdAt: 1 })
     .limit(2000);
 
-  res.json({ messages });
+  const normalizedMessages = messages.map((message) => {
+    const item = message.toObject();
+    return {
+      ...item,
+      senderMobileNumber: item.senderMobileNumber || item.account?.phoneNumber || null,
+      recipientMobileNumber: item.recipientMobileNumber || item.recipient || null,
+    };
+  });
+
+  res.json({ messages: normalizedMessages });
 }
 
 async function createCampaign(req, res) {
@@ -49,6 +206,10 @@ async function createCampaign(req, res) {
     req.body?.dailyMessageLimit == null || req.body?.dailyMessageLimit === ""
       ? null
       : Number(req.body.dailyMessageLimit);
+  const perRecipientMessageLimit =
+    req.body?.perRecipientMessageLimit == null || req.body?.perRecipientMessageLimit === ""
+      ? DEFAULT_PER_RECIPIENT_MESSAGE_LIMIT
+      : Number(req.body.perRecipientMessageLimit);
   const dateFrom = req.body?.dateFrom ? String(req.body.dateFrom) : null;
   const dateTo = req.body?.dateTo ? String(req.body.dateTo) : null;
   const perNumberDailySafeguard =
@@ -115,6 +276,15 @@ async function createCampaign(req, res) {
   ) {
     return res.status(400).json({ message: "dailyMessageLimit must be between 1 and 5000." });
   }
+  if (
+    !Number.isFinite(perRecipientMessageLimit) ||
+    perRecipientMessageLimit < 1 ||
+    perRecipientMessageLimit > MAX_PER_RECIPIENT_MESSAGE_LIMIT
+  ) {
+    return res.status(400).json({
+      message: `perRecipientMessageLimit must be between 1 and ${MAX_PER_RECIPIENT_MESSAGE_LIMIT}.`,
+    });
+  }
   if (dateFrom && !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
     return res.status(400).json({ message: "dateFrom must be in YYYY-MM-DD format." });
   }
@@ -149,6 +319,7 @@ async function createCampaign(req, res) {
     mediaFileName,
     maxMessages,
     dailyMessageLimit,
+    perRecipientMessageLimit: Math.floor(perRecipientMessageLimit),
     dateFrom,
     dateTo,
     perNumberDailySafeguard,
@@ -218,6 +389,10 @@ async function updateCampaign(req, res) {
     req.body?.dailyMessageLimit == null || req.body?.dailyMessageLimit === ""
       ? null
       : Number(req.body.dailyMessageLimit);
+  const perRecipientMessageLimit =
+    req.body?.perRecipientMessageLimit == null || req.body?.perRecipientMessageLimit === ""
+      ? null
+      : Number(req.body.perRecipientMessageLimit);
   const dateFrom = req.body?.dateFrom ? String(req.body.dateFrom) : null;
   const dateTo = req.body?.dateTo ? String(req.body.dateTo) : null;
   const perNumberDailySafeguard =
@@ -240,6 +415,16 @@ async function updateCampaign(req, res) {
     (!Number.isFinite(dailyMessageLimit) || dailyMessageLimit < 1 || dailyMessageLimit > 5000)
   ) {
     return res.status(400).json({ message: "dailyMessageLimit must be between 1 and 5000." });
+  }
+  if (
+    perRecipientMessageLimit != null &&
+    (!Number.isFinite(perRecipientMessageLimit) ||
+      perRecipientMessageLimit < 1 ||
+      perRecipientMessageLimit > MAX_PER_RECIPIENT_MESSAGE_LIMIT)
+  ) {
+    return res.status(400).json({
+      message: `perRecipientMessageLimit must be between 1 and ${MAX_PER_RECIPIENT_MESSAGE_LIMIT}.`,
+    });
   }
   if (dateFrom && !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
     return res.status(400).json({ message: "dateFrom must be in YYYY-MM-DD format." });
@@ -271,19 +456,40 @@ async function updateCampaign(req, res) {
       .json({ message: "perNumberHourlySafeguard must be between 1 and 100." });
   }
 
+  const nextPerRecipientMessageLimit =
+    perRecipientMessageLimit == null
+      ? campaign.perRecipientMessageLimit || DEFAULT_PER_RECIPIENT_MESSAGE_LIMIT
+      : Math.floor(perRecipientMessageLimit);
+  const recipientLimitChanged =
+    nextPerRecipientMessageLimit !==
+    (campaign.perRecipientMessageLimit || DEFAULT_PER_RECIPIENT_MESSAGE_LIMIT);
+
   campaign.title = title;
   campaign.messageBody = messageBody;
   campaign.dailyMessageLimit = dailyMessageLimit;
+  campaign.perRecipientMessageLimit = nextPerRecipientMessageLimit;
   campaign.dateFrom = dateFrom;
   campaign.dateTo = dateTo;
   campaign.perNumberDailySafeguard = perNumberDailySafeguard || 20;
   campaign.perNumberHourlySafeguard = perNumberHourlySafeguard || 2;
-  await campaign.save();
+  if (recipientLimitChanged) {
+    await rebalancePendingMessagesForRecipientLimit(campaign, req.user._id);
+  }
 
   await CampaignMessage.updateMany(
     { owner: req.user._id, campaign: campaign._id, status: "pending" },
     { $set: { text: messageBody } },
   );
+
+  if (
+    campaign.queuedCount === 0 &&
+    ["queued", "running", "paused"].includes(campaign.status)
+  ) {
+    campaign.status = campaign.sentCount > 0 ? "completed" : "failed";
+    campaign.completedAt = new Date();
+  }
+
+  await campaign.save();
 
   const hydrated = await Campaign.findById(campaign._id)
     .populate("account", "name phoneNumber status dailyLimit sentToday")

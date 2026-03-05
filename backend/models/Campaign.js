@@ -52,6 +52,17 @@ const campaignSchema = new mongoose.Schema(
       min: 1,
       max: 5000,
     },
+    perRecipientMessageLimit: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 20,
+    },
+    recipientPool: [
+      {
+        type: String,
+      },
+    ],
     dateFrom: {
       type: String,
       default: null,

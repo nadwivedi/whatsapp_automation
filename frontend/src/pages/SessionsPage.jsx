@@ -97,14 +97,16 @@ function SessionsPage({
                 >
                   {busy === `qr-${account._id}` ? "Loading..." : "Show QR"}
                 </button>
-                <button
-                  type="button"
-                  className="btn-red"
-                  onClick={() => removeAccount(account)}
-                  disabled={busy === `delete-${account._id}`}
-                >
-                  {busy === `delete-${account._id}` ? "Deleting..." : "Delete"}
-                </button>
+                {(!isSessionRunning || account.isActive === false) && (
+                  <button
+                    type="button"
+                    className="btn-red"
+                    onClick={() => removeAccount(account)}
+                    disabled={busy === `delete-${account._id}`}
+                  >
+                    {busy === `delete-${account._id}` ? "Deleting..." : "Delete"}
+                  </button>
+                )}
               </div>
 
               <div className="mt-4 grid gap-2 sm:grid-cols-[130px_120px_120px] sm:items-center">

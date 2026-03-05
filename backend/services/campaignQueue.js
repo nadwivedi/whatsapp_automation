@@ -1,6 +1,11 @@
 ﻿const { Campaign } = require("../models/Campaign");
 const { CampaignMessage } = require("../models/CampaignMessage");
 const { WaAccount } = require("../models/WaAccount");
+const {
+  UserSetting,
+  DEFAULT_PER_MOBILE_DAILY_LIMIT,
+  DEFAULT_PER_MOBILE_HOURLY_LIMIT,
+} = require("../models/UserSetting");
 const whatsappSessionManager = require("./whatsappSessionManager");
 const { parseRecipients } = require("../utils/phone");
 
@@ -63,6 +68,40 @@ class CampaignQueue {
     return campaign.perNumberHourlySafeguard || SAFEGUARD_PER_NUMBER_HOURLY;
   }
 
+  async getOwnerSettings(ownerId) {
+    try {
+      const settings = await UserSetting.getOrCreate(ownerId);
+      return {
+        perMobileDailyLimit: settings.perMobileDailyLimit || DEFAULT_PER_MOBILE_DAILY_LIMIT,
+        perMobileHourlyLimit: settings.perMobileHourlyLimit || DEFAULT_PER_MOBILE_HOURLY_LIMIT,
+      };
+    } catch (_error) {
+      return {
+        perMobileDailyLimit: DEFAULT_PER_MOBILE_DAILY_LIMIT,
+        perMobileHourlyLimit: DEFAULT_PER_MOBILE_HOURLY_LIMIT,
+      };
+    }
+  }
+
+  buildRecipientSendPlan(recipients, maxMessages, perRecipientMessageLimit) {
+    const capPerRecipient = Number.isFinite(Number(perRecipientMessageLimit))
+      ? Math.max(1, Math.floor(Number(perRecipientMessageLimit)))
+      : 1;
+    const hardCapByRecipient = recipients.length * capPerRecipient;
+    const targetTotal = Number.isFinite(Number(maxMessages))
+      ? Math.min(Math.floor(Number(maxMessages)), hardCapByRecipient)
+      : hardCapByRecipient;
+
+    const plan = [];
+    for (let round = 0; round < capPerRecipient && plan.length < targetTotal; round += 1) {
+      for (const recipient of recipients) {
+        if (plan.length >= targetTotal) break;
+        plan.push(recipient);
+      }
+    }
+    return plan;
+  }
+
   async enqueueCampaign(payload) {
     let recipients = parseRecipients(payload.recipientsText || "");
     if (!recipients.length) {
@@ -74,6 +113,17 @@ class CampaignQueue {
     }
     if (payload.maxMessages != null) {
       recipients = recipients.slice(0, payload.maxMessages);
+    }
+    const perRecipientMessageLimit = Number.isFinite(Number(payload.perRecipientMessageLimit))
+      ? Math.max(1, Math.floor(Number(payload.perRecipientMessageLimit)))
+      : 1;
+    const recipientSendPlan = this.buildRecipientSendPlan(
+      recipients,
+      payload.maxMessages,
+      perRecipientMessageLimit,
+    );
+    if (!recipientSendPlan.length) {
+      throw new Error("No messages can be queued with current per person message limit.");
     }
 
     if (!payload.ownerId) {
@@ -115,6 +165,8 @@ class CampaignQueue {
       mediaFileName: payload.mediaFileName || null,
       maxMessages: payload.maxMessages || null,
       dailyMessageLimit: payload.dailyMessageLimit || null,
+      perRecipientMessageLimit,
+      recipientPool: recipients,
       dateFrom: payload.dateFrom || null,
       dateTo: payload.dateTo || null,
       perNumberDailySafeguard:
@@ -122,15 +174,16 @@ class CampaignQueue {
       perNumberHourlySafeguard:
         payload.perNumberHourlySafeguard || SAFEGUARD_PER_NUMBER_HOURLY,
       status: "queued",
-      totalRecipients: recipients.length,
-      queuedCount: recipients.length,
+      totalRecipients: recipientSendPlan.length,
+      queuedCount: recipientSendPlan.length,
     });
 
-    const docs = recipients.map((recipient, index) => ({
+    const docs = recipientSendPlan.map((recipient, index) => ({
       owner: payload.ownerId,
       campaign: campaign._id,
       account: accountIds[index % accountIds.length],
       recipient,
+      recipientMobileNumber: recipient,
       text: messageBody,
       status: "pending",
     }));
@@ -204,6 +257,7 @@ class CampaignQueue {
         await campaign.save();
         return;
       }
+      const ownerSettings = await this.getOwnerSettings(campaign.owner);
 
       const messages = await CampaignMessage.find({
         owner: campaign.owner,
@@ -257,11 +311,8 @@ class CampaignQueue {
 
         WaAccount.resetDailyWindowIfNeeded(account);
         WaAccount.resetHourlyWindowIfNeeded(account);
-        const effectiveDailyCap = Math.min(
-          account.dailyLimit,
-          this.getPerNumberDailySafeguard(campaign),
-        );
-        const effectiveHourlyCap = this.getPerNumberHourlySafeguard(campaign);
+        const effectiveDailyCap = Math.min(account.dailyLimit, ownerSettings.perMobileDailyLimit);
+        const effectiveHourlyCap = ownerSettings.perMobileHourlyLimit;
         if (account.sentToday >= effectiveDailyCap) {
           await account.save();
           lastBlockReason = `Daily safeguard reached (${effectiveDailyCap}/day) for one or more selected sessions.`;
@@ -313,6 +364,9 @@ class CampaignQueue {
         selectedMessage.status = "sent";
         selectedMessage.sentAt = new Date();
         selectedMessage.providerMessageId = providerMessageId;
+        selectedMessage.senderMobileNumber = selectedAccount.phoneNumber || null;
+        selectedMessage.recipientMobileNumber =
+          selectedMessage.recipientMobileNumber || selectedMessage.recipient;
         selectedMessage.tryCount += 1;
         selectedMessage.error = null;
 
@@ -328,6 +382,9 @@ class CampaignQueue {
         await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save()]);
       } catch (error) {
         selectedMessage.status = "failed";
+        selectedMessage.senderMobileNumber = selectedAccount.phoneNumber || null;
+        selectedMessage.recipientMobileNumber =
+          selectedMessage.recipientMobileNumber || selectedMessage.recipient;
         selectedMessage.tryCount += 1;
         selectedMessage.error = error.message;
         campaign.failedCount += 1;

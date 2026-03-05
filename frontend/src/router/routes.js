@@ -4,6 +4,7 @@ export const ROUTES = {
   templates: "/templates",
   campaigns: "/campaigns",
   messages: "/messages",
+  settings: "/settings",
 };
 
 export const NAV_ITEMS = [
@@ -12,6 +13,7 @@ export const NAV_ITEMS = [
   { key: "templates", label: "Templates", icon: "TP", path: ROUTES.templates },
   { key: "campaigns", label: "Campaigns", icon: "CP", path: ROUTES.campaigns },
   { key: "messages", label: "Messages", icon: "MS", path: ROUTES.messages },
+  { key: "settings", label: "Settings", icon: "ST", path: ROUTES.settings },
 ];
 
 const ROUTE_KEYS = Object.fromEntries(NAV_ITEMS.map((item) => [item.path, item.key]));

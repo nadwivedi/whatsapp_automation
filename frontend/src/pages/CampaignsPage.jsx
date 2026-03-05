@@ -28,10 +28,9 @@ function CampaignsPage({
     title: "",
     messageBody: "",
     dailyMessageLimit: "",
+    perRecipientMessageLimit: "1",
     dateFrom: "",
     dateTo: "",
-    perNumberDailySafeguard: "20",
-    perNumberHourlySafeguard: "2",
   });
   const selectedTemplate = templates.find((item) => item._id === campaignForm.templateId) || null;
   const eligibleAccounts = accounts.filter(
@@ -45,10 +44,9 @@ function CampaignsPage({
       messageBody: campaign.messageBody || "",
       dailyMessageLimit:
         campaign.dailyMessageLimit == null ? "" : String(campaign.dailyMessageLimit),
+      perRecipientMessageLimit: String(campaign.perRecipientMessageLimit || 1),
       dateFrom: campaign.dateFrom || "",
       dateTo: campaign.dateTo || "",
-      perNumberDailySafeguard: String(campaign.perNumberDailySafeguard || 20),
-      perNumberHourlySafeguard: String(campaign.perNumberHourlySafeguard || 2),
     });
     setShowEditPopup(true);
   }
@@ -63,10 +61,9 @@ function CampaignsPage({
       dailyMessageLimit: editForm.dailyMessageLimit
         ? Number(editForm.dailyMessageLimit)
         : undefined,
+      perRecipientMessageLimit: Number(editForm.perRecipientMessageLimit || 1),
       dateFrom: editForm.dateFrom || undefined,
       dateTo: editForm.dateTo || undefined,
-      perNumberDailySafeguard: Number(editForm.perNumberDailySafeguard || 20),
-      perNumberHourlySafeguard: Number(editForm.perNumberHourlySafeguard || 2),
     });
 
     if (ok) {
@@ -213,29 +210,15 @@ function CampaignsPage({
                     value={campaignForm.dailyMessageLimit}
                     onChange={(e) => setCampaignForm((p) => ({ ...p, dailyMessageLimit: e.target.value }))}
                   />
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
                   <input
                     className="input-dark"
                     type="number"
                     min="1"
-                    max="500"
-                    placeholder="Per number/day safeguard"
-                    value={campaignForm.perNumberDailySafeguard}
+                    max="20"
+                    placeholder="Messages per person"
+                    value={campaignForm.perRecipientMessageLimit}
                     onChange={(e) =>
-                      setCampaignForm((p) => ({ ...p, perNumberDailySafeguard: e.target.value }))
-                    }
-                    required
-                  />
-                  <input
-                    className="input-dark"
-                    type="number"
-                    min="1"
-                    max="100"
-                    placeholder="Per number/hour safeguard"
-                    value={campaignForm.perNumberHourlySafeguard}
-                    onChange={(e) =>
-                      setCampaignForm((p) => ({ ...p, perNumberHourlySafeguard: e.target.value }))
+                      setCampaignForm((p) => ({ ...p, perRecipientMessageLimit: e.target.value }))
                     }
                     required
                   />
@@ -331,28 +314,16 @@ function CampaignsPage({
                   className="input-dark"
                   type="number"
                   min="1"
-                  max="500"
-                  placeholder="Per number/day safeguard"
-                  value={editForm.perNumberDailySafeguard}
+                  max="20"
+                  placeholder="Messages per person"
+                  value={editForm.perRecipientMessageLimit}
                   onChange={(e) =>
-                    setEditForm((p) => ({ ...p, perNumberDailySafeguard: e.target.value }))
+                    setEditForm((p) => ({ ...p, perRecipientMessageLimit: e.target.value }))
                   }
                   required
                 />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <input
-                  className="input-dark"
-                  type="number"
-                  min="1"
-                  max="100"
-                  placeholder="Per number/hour safeguard"
-                  value={editForm.perNumberHourlySafeguard}
-                  onChange={(e) =>
-                    setEditForm((p) => ({ ...p, perNumberHourlySafeguard: e.target.value }))
-                  }
-                  required
-                />
                 <div className="grid gap-3 sm:grid-cols-2">
                   <input
                     className="input-dark"
@@ -431,10 +402,7 @@ function CampaignsPage({
                       </span>
                     )}
                     <span className="rounded-full bg-fuchsia-100 px-2.5 py-1 text-fuchsia-700">
-                      Safeguard/day per number: {campaign.perNumberDailySafeguard || 20}
-                    </span>
-                    <span className="rounded-full bg-violet-100 px-2.5 py-1 text-violet-700">
-                      Safeguard/hour per number: {campaign.perNumberHourlySafeguard || 2}
+                      Per person: {campaign.perRecipientMessageLimit || 1}
                     </span>
                     {(campaign.dateFrom || campaign.dateTo) && (
                       <span className="rounded-full bg-slate-200 px-2.5 py-1 text-slate-700">
@@ -515,7 +483,14 @@ function CampaignsPage({
                 messages.map((message) => (
                   <div key={message._id} className="card-dark rounded-xl p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-slate-800">{message.recipient}</p>
+                      <div>
+                        <p className="font-semibold text-slate-800">
+                          {message.senderMobileNumber || message.account?.phoneNumber || "Unknown"}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          to {message.recipientMobileNumber || message.recipient || "--"}
+                        </p>
+                      </div>
                       <span
                         className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase ${
                           message.status === "sent"

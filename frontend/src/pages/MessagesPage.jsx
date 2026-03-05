@@ -28,7 +28,7 @@ function MessagesPage({ allMessagesLoading, allMessages, loadAllMessages }) {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200 text-left">
-                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Mobile Number</th>
+                  <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-slate-500">From To</th>
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Message</th>
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Campaign</th>
                   <th className="pb-3 pr-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Date</th>
@@ -39,10 +39,16 @@ function MessagesPage({ allMessagesLoading, allMessages, loadAllMessages }) {
               <tbody className="divide-y divide-slate-100">
                 {allMessages.map((message) => {
                   const { date, time } = formatDateTime(message.sentAt || message.createdAt);
+                  const senderMobile =
+                    message.senderMobileNumber ||
+                    message.account?.phoneNumber ||
+                    "Unknown";
+                  const recipientMobile = message.recipientMobileNumber || message.recipient || "--";
                   return (
                     <tr key={message._id} className="hover:bg-slate-50/50">
                       <td className="py-3 pr-4">
-                        <p className="font-medium text-slate-900">{message.recipient}</p>
+                        <p className="font-medium text-slate-900">{senderMobile}</p>
+                        <p className="text-xs text-slate-500">to {recipientMobile}</p>
                       </td>
                       <td className="py-3 pr-4">
                         <p className="max-w-xs truncate text-sm text-slate-600">{message.text}</p>

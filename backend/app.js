@@ -5,6 +5,7 @@ const authRoutes = require("./routes/authRoutes");
 const accountRoutes = require("./routes/accountRoutes");
 const templateRoutes = require("./routes/templateRoutes");
 const campaignRoutes = require("./routes/campaignRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
 
 const app = express();
 const localOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
@@ -33,6 +34,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/accounts", requireAuth, accountRoutes);
 app.use("/api/templates", requireAuth, templateRoutes);
 app.use("/api/campaigns", requireAuth, campaignRoutes);
+app.use("/api/settings", requireAuth, settingsRoutes);
 
 app.use((err, _req, res, _next) => {
   const message = err?.message || "Unexpected server error.";

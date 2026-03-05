@@ -27,6 +27,16 @@ const campaignMessageSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    recipientMobileNumber: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    senderMobileNumber: {
+      type: String,
+      default: null,
+      index: true,
+    },
     text: {
       type: String,
       default: "",

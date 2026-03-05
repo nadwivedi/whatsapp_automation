@@ -9,6 +9,7 @@ import SessionsPage from "./pages/SessionsPage";
 import TemplatesPage from "./pages/TemplatesPage";
 import CampaignsPage from "./pages/CampaignsPage";
 import MessagesPage from "./pages/MessagesPage";
+import SettingsPage from "./pages/SettingsPage";
 
 function App() {
   const app = useWhatsAppManager();
@@ -101,6 +102,20 @@ function App() {
           allMessagesLoading={app.allMessagesLoading}
           allMessages={app.allMessages}
           loadAllMessages={app.loadAllMessages}
+        />
+      );
+    }
+
+    if (activeRoute === "settings") {
+      return (
+        <SettingsPage
+          key={`${app.settings?.perMobileDailyLimit || 20}-${app.settings?.perMobileHourlyLimit || 2}-${app.settings?.updatedAt || ""}`}
+          settings={app.settings}
+          accounts={app.accounts}
+          busy={app.busy}
+          saveSettings={app.saveSettings}
+          refreshAll={app.refreshAll}
+          refreshing={app.refreshing}
         />
       );
     }
