@@ -10,7 +10,7 @@ import {
   stopAccount,
   updateAccountDailyLimit,
 } from "../api/accountsApi";
-import { createTemplate as createTemplateApi, listTemplates } from "../api/templatesApi";
+import { createTemplate as createTemplateApi, listTemplates, deleteTemplate as deleteTemplateApi } from "../api/templatesApi";
 import {
   createCampaign as createCampaignApi,
   getCampaignMessages,
@@ -18,6 +18,7 @@ import {
   pauseCampaign,
   resumeCampaign,
   updateCampaign as updateCampaignApi,
+  deleteCampaign as deleteCampaignApi,
 } from "../api/campaignsApi";
 import {
   getSettings as getSettingsApi,
@@ -545,6 +546,42 @@ export function useWhatsAppManager() {
     }
   }
 
+  async function deleteCampaign(campaign) {
+    const yes = window.confirm(`Delete campaign "${campaign.title}"? This will also remove all its messages.`);
+    if (!yes) return;
+
+    setBusy(`delete-campaign-${campaign._id}`);
+    try {
+      await deleteCampaignApi(token, campaign._id);
+      if (selectedCampaign?._id === campaign._id) {
+        setSelectedCampaign(null);
+        setMessages([]);
+      }
+      setNotice({ type: "success", text: "Campaign deleted." });
+      await refreshAll();
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteTemplate(template) {
+    const yes = window.confirm(`Delete template "${template.name}"?`);
+    if (!yes) return;
+
+    setBusy(`delete-template-${template._id}`);
+    try {
+      await deleteTemplateApi(token, template._id);
+      setNotice({ type: "success", text: "Template deleted." });
+      await refreshAll();
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+    } finally {
+      setBusy("");
+    }
+  }
+
   return {
     token,
     profile,
@@ -593,7 +630,9 @@ export function useWhatsAppManager() {
     refreshQrPreview,
     removeAccount,
     createTemplate,
+    deleteTemplate,
     createCampaign,
+    deleteCampaign,
     updateCampaign,
     campaignAction,
     loadMessages,

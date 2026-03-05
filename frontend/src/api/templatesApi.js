@@ -10,3 +10,10 @@ export function createTemplate(token, payload) {
     options: { method: "POST", body: JSON.stringify(payload) },
   });
 }
+
+export function deleteTemplate(token, templateId) {
+  return apiRequest(`/templates/${templateId}`, {
+    token,
+    options: { method: "DELETE" },
+  });
+}

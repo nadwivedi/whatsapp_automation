@@ -18,6 +18,13 @@ export function updateCampaign(token, campaignId, payload) {
   });
 }
 
+export function deleteCampaign(token, campaignId) {
+  return apiRequest(`/campaigns/${campaignId}`, {
+    token,
+    options: { method: "DELETE" },
+  });
+}
+
 export function pauseCampaign(token, campaignId) {
   return apiRequest(`/campaigns/${campaignId}/pause`, { token, options: { method: "POST" } });
 }

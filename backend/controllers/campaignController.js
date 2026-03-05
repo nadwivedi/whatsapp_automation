@@ -499,6 +499,24 @@ async function updateCampaign(req, res) {
   return res.json({ campaign: hydrated });
 }
 
+async function deleteCampaign(req, res) {
+  const campaign = await Campaign.findOne({
+    _id: req.params.campaignId,
+    owner: req.user._id,
+  });
+  if (!campaign) {
+    return res.status(404).json({ message: "Campaign not found." });
+  }
+
+  await CampaignMessage.deleteMany({
+    owner: req.user._id,
+    campaign: campaign._id,
+  });
+
+  await campaign.deleteOne();
+  return res.json({ message: "Campaign deleted." });
+}
+
 module.exports = {
   listCampaigns,
   listCampaignMessages,
@@ -506,4 +524,5 @@ module.exports = {
   pauseCampaign,
   resumeCampaign,
   updateCampaign,
+  deleteCampaign,
 };

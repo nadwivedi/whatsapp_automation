@@ -64,6 +64,7 @@ function App() {
           templateForm={app.templateForm}
           setTemplateForm={app.setTemplateForm}
           createTemplate={app.createTemplate}
+          deleteTemplate={app.deleteTemplate}
           busy={app.busy}
           templates={app.templates}
           dashboardLoading={app.dashboardLoading}
@@ -81,6 +82,7 @@ function App() {
           setCampaignForm={app.setCampaignForm}
           createCampaign={app.createCampaign}
           updateCampaign={app.updateCampaign}
+          deleteCampaign={app.deleteCampaign}
           busy={app.busy}
           accounts={app.accounts}
           templates={app.templates}

@@ -17,6 +17,7 @@ function TemplatesPage({
   templateForm,
   setTemplateForm,
   createTemplate,
+  deleteTemplate,
   busy,
   templates,
   dashboardLoading,
@@ -136,9 +137,19 @@ function TemplatesPage({
           <div key={template._id} className="glass-panel rounded-2xl p-6">
             <div className="flex items-center justify-between gap-2">
               <p className="font-heading text-base font-semibold text-slate-900">{template.name}</p>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600">
-                {formatDate(template.updatedAt)}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600">
+                  {formatDate(template.updatedAt)}
+                </span>
+                <button
+                  type="button"
+                  className="btn-red"
+                  onClick={() => deleteTemplate(template)}
+                  disabled={busy === `delete-template-${template._id}`}
+                >
+                  {busy === `delete-template-${template._id}` ? "..." : "Delete"}
+                </button>
+              </div>
             </div>
             <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{template.body || "No text caption"}</p>
             {template.mediaData && (

@@ -6,6 +6,7 @@ const {
   pauseCampaign,
   resumeCampaign,
   updateCampaign,
+  deleteCampaign,
 } = require("../controllers/campaignController");
 
 const router = express.Router();
@@ -14,6 +15,7 @@ router.get("/", listCampaigns);
 router.get("/:campaignId/messages", listCampaignMessages);
 router.post("/", createCampaign);
 router.patch("/:campaignId", updateCampaign);
+router.delete("/:campaignId", deleteCampaign);
 router.post("/:campaignId/pause", pauseCampaign);
 router.post("/:campaignId/resume", resumeCampaign);
 

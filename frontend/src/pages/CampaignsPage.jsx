@@ -9,6 +9,7 @@ function CampaignsPage({
   setCampaignForm,
   createCampaign,
   updateCampaign,
+  deleteCampaign,
   busy,
   accounts,
   templates,
@@ -449,6 +450,14 @@ function CampaignsPage({
                     )}
                     <button type="button" className="btn-dark" onClick={() => loadMessages(campaign)}>
                       View Messages
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-red"
+                      onClick={() => deleteCampaign(campaign)}
+                      disabled={busy === `delete-campaign-${campaign._id}`}
+                    >
+                      {busy === `delete-campaign-${campaign._id}` ? "Deleting..." : "Delete"}
                     </button>
                   </div>
                 </div>
