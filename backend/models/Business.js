@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const businessSchema = new mongoose.Schema(
   {
-    owner: {
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -67,7 +67,7 @@ const businessSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-businessSchema.index({ owner: 1, businessName: 1, mobile: 1 });
+businessSchema.index({ userId: 1, businessName: 1, mobile: 1 });
 
 module.exports = {
   Business: mongoose.model("Business", businessSchema),

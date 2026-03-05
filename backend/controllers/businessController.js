@@ -129,7 +129,7 @@ function resolveCategoryFromLookup(categoryInput, lookup) {
 
 async function listBusinesses(req, res) {
   const businesses = await Business.find({
-    owner: req.user._id,
+    userId: req.user._id,
     isActive: true,
   })
     .populate("businessCategory", "name")
@@ -153,7 +153,7 @@ async function createBusiness(req, res) {
   }
 
   const business = await Business.create({
-    owner: req.user._id,
+    userId: req.user._id,
     businessName: payload.businessName,
     mobile: payload.mobile,
     email: payload.email,
@@ -170,7 +170,7 @@ async function createBusiness(req, res) {
 
 async function deleteBusiness(req, res) {
   const business = await Business.findOneAndUpdate(
-    { _id: req.params.businessId, owner: req.user._id, isActive: true },
+    { _id: req.params.businessId, userId: req.user._id, isActive: true },
     { isActive: false },
     { returnDocument: "after" },
   );
@@ -237,7 +237,7 @@ async function bulkInsertBusinesses(req, res) {
     }
 
     docs.push({
-      owner: req.user._id,
+      userId: req.user._id,
       businessName: payload.businessName,
       mobile: payload.mobile,
       email: payload.email,
@@ -261,7 +261,7 @@ async function bulkInsertBusinesses(req, res) {
   const insertedIds = inserted.map((doc) => doc._id);
   const insertedBusinesses = await Business.find({
     _id: { $in: insertedIds },
-    owner: req.user._id,
+    userId: req.user._id,
   })
     .populate("businessCategory", "name")
     .sort({ createdAt: -1 });

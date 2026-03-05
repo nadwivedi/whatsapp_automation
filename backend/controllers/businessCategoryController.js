@@ -90,7 +90,7 @@ async function deleteBusinessCategory(req, res) {
   }
 
   const linkedBusinesses = await Business.countDocuments({
-    owner: req.user._id,
+    userId: req.user._id,
     businessCategory: category._id,
     isActive: true,
   });
