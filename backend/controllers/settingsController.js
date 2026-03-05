@@ -17,12 +17,14 @@ async function buildCapacity(ownerId, perMobileDailyLimit, perMobileHourlyLimit)
     owner: ownerId,
     isActive: true,
     status: "authenticated",
-  }).select("dailyLimit sentToday sentOn sentThisHour hourWindowStart");
+  }).select("dailyLimit sentToday dayWindowStart sentThisHour hourWindowStart");
 
   const updates = [];
   for (const account of activeConnectedAccounts) {
-    const prevSentOn = account.sentOn;
     const prevSentToday = account.sentToday;
+    const prevDayWindowStart = account.dayWindowStart
+      ? new Date(account.dayWindowStart).getTime()
+      : 0;
     const prevSentThisHour = account.sentThisHour;
     const prevHourWindowStart = account.hourWindowStart
       ? new Date(account.hourWindowStart).getTime()
@@ -31,12 +33,15 @@ async function buildCapacity(ownerId, perMobileDailyLimit, perMobileHourlyLimit)
     WaAccount.resetDailyWindowIfNeeded(account);
     WaAccount.resetHourlyWindowIfNeeded(account);
 
+    const nextDayWindowStart = account.dayWindowStart
+      ? new Date(account.dayWindowStart).getTime()
+      : 0;
     const nextHourWindowStart = account.hourWindowStart
       ? new Date(account.hourWindowStart).getTime()
       : 0;
     const hasChanged =
-      prevSentOn !== account.sentOn ||
       prevSentToday !== account.sentToday ||
+      prevDayWindowStart !== nextDayWindowStart ||
       prevSentThisHour !== account.sentThisHour ||
       prevHourWindowStart !== nextHourWindowStart;
 

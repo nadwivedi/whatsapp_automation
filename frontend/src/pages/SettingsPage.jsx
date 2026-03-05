@@ -62,7 +62,6 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
       Number.isFinite(dailyLimit) && dailyLimit > 0 ? Math.floor(dailyLimit) : 0;
     const effectiveHourlyLimit =
       Number.isFinite(hourlyLimit) && hourlyLimit > 0 ? Math.floor(hourlyLimit) : 0;
-    const todayUtc = new Date().toISOString().slice(0, 10);
 
     return activeConnectedAccounts
       .map((account) => {
@@ -73,10 +72,9 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
         const dailyCap = Math.min(effectiveDailyLimit, accountDailyLimit);
         const sentToday = Number(account.sentToday) || 0;
         const dailyRemaining = Math.max(0, dailyCap - sentToday);
-        const sentOn = typeof account.sentOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(account.sentOn)
-          ? account.sentOn
-          : todayUtc;
-        const dayStartMs = new Date(`${sentOn}T00:00:00.000Z`).getTime();
+        const dayStartMs = account.dayWindowStart
+          ? new Date(account.dayWindowStart).getTime()
+          : 0;
         const dailyResetAtMs = dayStartMs + 24 * 60 * 60 * 1000;
 
         const sentThisHour = Number(account.sentThisHour) || 0;
@@ -99,7 +97,10 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
           sentToday,
           dailyCap,
           dailyRemaining,
-          dailyResetLabel: Number.isFinite(dailyResetAtMs)
+          dailyWindowStartedLabel: dayStartMs
+            ? formatDate(new Date(dayStartMs))
+            : "Starts after first send.",
+          dailyResetLabel: dayStartMs && Number.isFinite(dailyResetAtMs)
             ? formatDate(new Date(dailyResetAtMs))
             : "--",
           sentThisHour,
@@ -296,7 +297,7 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
         <div className="border-b border-slate-300/80 bg-gradient-to-r from-slate-200/80 via-emerald-100/70 to-cyan-100/70 px-4 py-4 sm:px-6 sm:py-5">
           <h2 className="font-heading text-lg font-semibold text-slate-900 sm:text-xl">Limit Window by Mobile</h2>
           <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-            Hourly reset = last sent time + 1 hour. Daily reset follows UTC day window.
+            Daily reset = first send in window + 24 hours. Hourly reset = last sent + 1 hour.
           </p>
         </div>
 
@@ -324,6 +325,7 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
                   <div className="mt-2 space-y-1 text-[10px] text-slate-600 sm:text-xs">
                     <p>Daily used: {item.sentToday}/{item.dailyCap}</p>
                     <p>Daily remaining: {item.dailyRemaining}</p>
+                    <p>Daily window started: {item.dailyWindowStartedLabel}</p>
                     <p>Daily resets at: {item.dailyResetLabel}</p>
                     <p>Remaining this hour: {item.remaining}</p>
                     <p>Last sent at: {item.lastSentLabel}</p>

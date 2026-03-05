@@ -13,6 +13,7 @@ const QUEUE_INTERVAL_MS = Number(process.env.QUEUE_INTERVAL_MS || 3000);
 const MIN_GAP_PER_ACCOUNT_MS = Number(process.env.MIN_GAP_PER_ACCOUNT_MS || 4000);
 const SAFEGUARD_PER_NUMBER_DAILY = Number(process.env.SAFEGUARD_PER_NUMBER_DAILY || 20);
 const SAFEGUARD_PER_NUMBER_HOURLY = Number(process.env.SAFEGUARD_PER_NUMBER_HOURLY || 2);
+const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 class CampaignQueue {
   constructor() {
@@ -53,9 +54,20 @@ class CampaignQueue {
   }
 
   resetCampaignDailyWindowIfNeeded(campaign) {
-    const today = new Date().toISOString().slice(0, 10);
-    if (campaign.sentOn !== today) {
-      campaign.sentOn = today;
+    const now = Date.now();
+    const dayStart = campaign.dayWindowStart ? new Date(campaign.dayWindowStart).getTime() : 0;
+
+    if (!dayStart) {
+      if ((Number(campaign.sentToday) || 0) !== 0) {
+        // Keep existing usage and start strict 24h tracking from now.
+        campaign.dayWindowStart = new Date();
+      }
+      return;
+    }
+
+    if (now - dayStart >= DAILY_WINDOW_MS) {
+      campaign.dayWindowStart = null;
+      campaign.sentOn = null;
       campaign.sentToday = 0;
     }
   }
@@ -253,7 +265,7 @@ class CampaignQueue {
       }
       this.resetCampaignDailyWindowIfNeeded(campaign);
       if (campaign.dailyMessageLimit && campaign.sentToday >= campaign.dailyMessageLimit) {
-        campaign.lastError = `Daily campaign limit reached (${campaign.dailyMessageLimit}/day).`;
+        campaign.lastError = `Campaign 24h limit reached (${campaign.dailyMessageLimit}/24h).`;
         await campaign.save();
         return;
       }
@@ -315,7 +327,7 @@ class CampaignQueue {
         const effectiveHourlyCap = ownerSettings.perMobileHourlyLimit;
         if (account.sentToday >= effectiveDailyCap) {
           await account.save();
-          lastBlockReason = `Daily safeguard reached (${effectiveDailyCap}/day) for one or more selected sessions.`;
+          lastBlockReason = `Daily safeguard reached (${effectiveDailyCap}/24h) for one or more selected sessions.`;
           continue;
         }
         if (account.sentThisHour >= effectiveHourlyCap) {
@@ -373,9 +385,15 @@ class CampaignQueue {
         campaign.sentCount += 1;
         campaign.queuedCount -= 1;
         campaign.sentToday += 1;
+        if (!campaign.dayWindowStart) {
+          campaign.dayWindowStart = new Date();
+        }
         campaign.lastError = null;
 
         selectedAccount.sentToday += 1;
+        if (!selectedAccount.dayWindowStart) {
+          selectedAccount.dayWindowStart = new Date();
+        }
         selectedAccount.sentThisHour += 1;
         selectedAccount.hourWindowStart = new Date();
         this.markAccountSent(selectedAccount._id);

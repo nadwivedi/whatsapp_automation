@@ -94,6 +94,10 @@ const campaignSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    dayWindowStart: {
+      type: Date,
+      default: null,
+    },
     mediaType: {
       type: String,
       enum: ["image", "video", null],

@@ -9,6 +9,7 @@ const ACCOUNT_STATUSES = [
   "disconnected",
   "auth_failure",
 ];
+const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const waAccountSchema = new mongoose.Schema(
   {
@@ -64,6 +65,10 @@ const waAccountSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    dayWindowStart: {
+      type: Date,
+      default: null,
+    },
     sentThisHour: {
       type: Number,
       default: 0,
@@ -87,9 +92,20 @@ const waAccountSchema = new mongoose.Schema(
 );
 
 waAccountSchema.statics.resetDailyWindowIfNeeded = function resetDailyWindowIfNeeded(account) {
-  const today = new Date().toISOString().slice(0, 10);
-  if (account.sentOn !== today) {
-    account.sentOn = today;
+  const now = Date.now();
+  const dayStart = account.dayWindowStart ? new Date(account.dayWindowStart).getTime() : 0;
+
+  if (!dayStart) {
+    if ((Number(account.sentToday) || 0) !== 0) {
+      // Keep current usage and start strict 24h tracking from now.
+      account.dayWindowStart = new Date();
+    }
+    return account;
+  }
+
+  if (now - dayStart >= DAILY_WINDOW_MS) {
+    account.dayWindowStart = null;
+    account.sentOn = null;
     account.sentToday = 0;
   }
   return account;
