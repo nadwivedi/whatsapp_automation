@@ -68,12 +68,18 @@ class CampaignQueue {
       throw new Error("ownerId is required.");
     }
 
-    const account = await WaAccount.findOne({
-      _id: payload.accountId,
+    const accountIds = Array.isArray(payload.accountIds) ? payload.accountIds : [];
+    if (!accountIds.length) {
+      throw new Error("At least one account is required.");
+    }
+
+    const accounts = await WaAccount.find({
+      _id: { $in: accountIds },
       owner: payload.ownerId,
-    });
-    if (!account || !account.isActive) {
-      throw new Error("Selected WhatsApp account does not exist.");
+      isActive: true,
+    }).select("_id");
+    if (accounts.length !== accountIds.length) {
+      throw new Error("One or more selected WhatsApp accounts are invalid.");
     }
 
     const messageBody = (payload.messageBody || "").trim();
@@ -86,7 +92,8 @@ class CampaignQueue {
 
     const campaign = await Campaign.create({
       owner: payload.ownerId,
-      account: account._id,
+      account: accountIds[0],
+      accounts: accountIds,
       template: payload.templateId || null,
       title,
       messageBody,
@@ -103,10 +110,10 @@ class CampaignQueue {
       queuedCount: recipients.length,
     });
 
-    const docs = recipients.map((recipient) => ({
+    const docs = recipients.map((recipient, index) => ({
       owner: payload.ownerId,
       campaign: campaign._id,
-      account: account._id,
+      account: accountIds[index % accountIds.length],
       recipient,
       text: messageBody,
       status: "pending",
@@ -182,99 +189,124 @@ class CampaignQueue {
         return;
       }
 
-      const account = await WaAccount.findById(campaign.account);
-      const accountOwnerMismatch =
-        account && String(account.owner) !== String(campaign.owner);
-      if (!account) {
-        campaign.status = "failed";
-        campaign.lastError = "Source WhatsApp account is missing.";
-        campaign.completedAt = new Date();
-        await campaign.save();
-        await CampaignMessage.updateMany(
-          { owner: campaign.owner, campaign: campaign._id, status: "pending" },
-          { $set: { status: "failed", error: "Account not found." } },
-        );
-        return;
-      }
-
-      if (accountOwnerMismatch) {
-        campaign.status = "failed";
-        campaign.lastError = "Campaign ownership mismatch with account.";
-        campaign.completedAt = new Date();
-        await campaign.save();
-        await CampaignMessage.updateMany(
-          { owner: campaign.owner, campaign: campaign._id, status: "pending" },
-          { $set: { status: "failed", error: "Campaign ownership mismatch." } },
-        );
-        return;
-      }
-
-      WaAccount.resetDailyWindowIfNeeded(account);
-      if (account.sentToday >= account.dailyLimit) {
-        campaign.lastError = "Daily limit reached for this WhatsApp number.";
-        await Promise.all([campaign.save(), account.save()]);
-        return;
-      }
-
-      if (account.status !== "authenticated") {
-        campaign.lastError = "Account not authenticated. Scan QR and wait for connected status.";
-        await campaign.save();
-        return;
-      }
-
-      if (this.isAccountThrottled(account._id)) {
-        return;
-      }
-
-      const message = await CampaignMessage.findOne({
+      const messages = await CampaignMessage.find({
         owner: campaign.owner,
         campaign: campaign._id,
         status: "pending",
-      }).sort({ createdAt: 1 });
+      })
+        .sort({ createdAt: 1 })
+        .limit(50);
 
-      if (!message) {
+      if (!messages.length) {
         await this.finishCampaignIfDone(campaign);
+        return;
+      }
+
+      const accountCache = new Map();
+      let selectedMessage = null;
+      let selectedAccount = null;
+      let lastBlockReason = "No available account can send right now.";
+
+      for (const candidate of messages) {
+        const key = String(candidate.account);
+        let account = accountCache.get(key);
+        if (account === undefined) {
+          account = await WaAccount.findById(candidate.account);
+          accountCache.set(key, account || null);
+        }
+
+        if (!account) {
+          candidate.status = "failed";
+          candidate.tryCount += 1;
+          candidate.error = "Account not found.";
+          campaign.failedCount += 1;
+          campaign.queuedCount -= 1;
+          campaign.lastError = "One of the selected accounts was removed.";
+          await Promise.all([candidate.save(), campaign.save()]);
+          await this.finishCampaignIfDone(campaign);
+          return;
+        }
+
+        if (String(account.owner) !== String(campaign.owner) || !account.isActive) {
+          candidate.status = "failed";
+          candidate.tryCount += 1;
+          candidate.error = "Campaign ownership mismatch.";
+          campaign.failedCount += 1;
+          campaign.queuedCount -= 1;
+          campaign.lastError = "One of the selected accounts is invalid.";
+          await Promise.all([candidate.save(), campaign.save()]);
+          await this.finishCampaignIfDone(campaign);
+          return;
+        }
+
+        WaAccount.resetDailyWindowIfNeeded(account);
+        if (account.sentToday >= account.dailyLimit) {
+          await account.save();
+          lastBlockReason = "Daily limit reached for one or more selected sessions.";
+          continue;
+        }
+        if (account.status !== "authenticated") {
+          lastBlockReason = "One or more selected sessions are not authenticated.";
+          continue;
+        }
+        if (this.isAccountThrottled(account._id)) {
+          lastBlockReason = "Selected sessions are cooling down. Retrying shortly.";
+          continue;
+        }
+
+        selectedMessage = candidate;
+        selectedAccount = account;
+        break;
+      }
+
+      if (!selectedMessage || !selectedAccount) {
+        campaign.lastError = lastBlockReason;
+        await campaign.save();
         return;
       }
 
       try {
         const providerMessageId = campaign.mediaData
           ? await whatsappSessionManager.sendMediaMessage(
-              account._id,
-              message.recipient,
+              selectedAccount._id,
+              selectedMessage.recipient,
               {
                 mediaData: campaign.mediaData,
                 mediaMimeType: campaign.mediaMimeType,
                 mediaFileName: campaign.mediaFileName,
               },
-              message.text,
+              selectedMessage.text,
             )
-          : await whatsappSessionManager.sendTextMessage(account._id, message.recipient, message.text);
+          : await whatsappSessionManager.sendTextMessage(
+              selectedAccount._id,
+              selectedMessage.recipient,
+              selectedMessage.text,
+            );
 
-        message.status = "sent";
-        message.sentAt = new Date();
-        message.providerMessageId = providerMessageId;
-        message.tryCount += 1;
-        message.error = null;
+        selectedMessage.status = "sent";
+        selectedMessage.sentAt = new Date();
+        selectedMessage.providerMessageId = providerMessageId;
+        selectedMessage.tryCount += 1;
+        selectedMessage.error = null;
 
         campaign.sentCount += 1;
         campaign.queuedCount -= 1;
         campaign.sentToday += 1;
         campaign.lastError = null;
 
-        account.sentToday += 1;
-        this.markAccountSent(account._id);
+        selectedAccount.sentToday += 1;
+        this.markAccountSent(selectedAccount._id);
 
-        await Promise.all([message.save(), campaign.save(), account.save()]);
+        await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save()]);
       } catch (error) {
-        message.status = "failed";
-        message.tryCount += 1;
-        message.error = error.message;
+        selectedMessage.status = "failed";
+        selectedMessage.tryCount += 1;
+        selectedMessage.error = error.message;
         campaign.failedCount += 1;
         campaign.queuedCount -= 1;
         campaign.lastError = error.message;
 
-        await Promise.all([message.save(), campaign.save()]);
+        await Promise.all([selectedMessage.save(), campaign.save()]);
       }
 
       await this.finishCampaignIfDone(campaign);

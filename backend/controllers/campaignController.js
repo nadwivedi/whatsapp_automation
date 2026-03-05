@@ -8,6 +8,7 @@ async function listCampaigns(req, res) {
   const campaigns = await Campaign.find({ owner: req.user._id })
     .sort({ createdAt: -1 })
     .populate("account", "name phoneNumber status dailyLimit sentToday")
+    .populate("accounts", "name phoneNumber status dailyLimit sentToday")
     .populate("template", "name body mediaType mediaFileName")
     .limit(100);
   res.json({ campaigns });
@@ -51,19 +52,26 @@ async function createCampaign(req, res) {
   const dateFrom = req.body?.dateFrom ? String(req.body.dateFrom) : null;
   const dateTo = req.body?.dateTo ? String(req.body.dateTo) : null;
 
-  if (!accountId) {
-    return res.status(400).json({ message: "accountId is required." });
+  const inputAccountIds = Array.isArray(req.body?.accountIds)
+    ? req.body.accountIds.filter(Boolean)
+    : accountId
+      ? [accountId]
+      : [];
+  const uniqueAccountIds = [...new Set(inputAccountIds.map((id) => String(id)))];
+
+  if (!uniqueAccountIds.length) {
+    return res.status(400).json({ message: "At least one account is required." });
   }
   if (maxMessages == null) {
     return res.status(400).json({ message: "maxMessages is required." });
   }
 
-  const account = await WaAccount.findOne({
-    _id: accountId,
+  const accounts = await WaAccount.find({
+    _id: { $in: uniqueAccountIds },
     owner: req.user._id,
   }).select("_id");
-  if (!account) {
-    return res.status(400).json({ message: "Selected WhatsApp account is invalid." });
+  if (accounts.length !== uniqueAccountIds.length) {
+    return res.status(400).json({ message: "One or more selected WhatsApp accounts are invalid." });
   }
 
   if (templateId) {
@@ -109,7 +117,7 @@ async function createCampaign(req, res) {
   const campaign = await campaignQueue.enqueueCampaign({
     ownerId: req.user._id,
     title,
-    accountId,
+    accountIds: uniqueAccountIds,
     templateId: templateId || null,
     messageBody: normalizedBody,
     mediaData,
@@ -125,6 +133,7 @@ async function createCampaign(req, res) {
 
   const hydrated = await Campaign.findById(campaign._id)
     .populate("account", "name phoneNumber status dailyLimit sentToday")
+    .populate("accounts", "name phoneNumber status dailyLimit sentToday")
     .populate("template", "name body mediaType mediaFileName");
 
   return res.status(201).json({ campaign: hydrated });

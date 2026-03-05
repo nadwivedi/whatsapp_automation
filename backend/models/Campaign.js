@@ -16,6 +16,12 @@ const campaignSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    accounts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "WaAccount",
+      },
+    ],
     template: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "MessageTemplate",

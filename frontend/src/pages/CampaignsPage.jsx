@@ -46,17 +46,23 @@ function CampaignsPage({
             />
             <select
               className="input-dark"
-              value={campaignForm.accountId}
-              onChange={(e) => setCampaignForm((p) => ({ ...p, accountId: e.target.value }))}
-              required
+              multiple
+              value={campaignForm.accountIds}
+              onChange={(e) => {
+                const selectedIds = Array.from(e.target.selectedOptions).map((opt) => opt.value);
+                setCampaignForm((p) => ({ ...p, accountIds: selectedIds }));
+              }}
             >
-              <option value="">Select session</option>
               {accounts.map((account) => (
                 <option key={account._id} value={account._id}>
                   {account.name} ({account.status})
                 </option>
               ))}
             </select>
+            <p className="text-xs text-slate-500">
+              Select one or more sending sessions (Ctrl/Cmd + click for multi-select). Selected:{" "}
+              {campaignForm.accountIds.length}
+            </p>
             <select
               className="input-dark"
               value={campaignForm.templateId}
@@ -169,7 +175,10 @@ function CampaignsPage({
                     <div>
                       <p className="font-heading text-base font-semibold text-slate-800">{campaign.title}</p>
                       <p className="text-xs text-slate-500">
-                        {campaign.account?.name || "Unknown"} • {formatDate(campaign.createdAt)}
+                        {(campaign.accounts?.length
+                          ? campaign.accounts.map((acc) => acc.name).join(", ")
+                          : campaign.account?.name || "Unknown")}{" "}
+                        • {formatDate(campaign.createdAt)}
                       </p>
                     </div>
                     <span

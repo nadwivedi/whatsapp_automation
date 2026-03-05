@@ -56,7 +56,7 @@ export function useWhatsAppManager() {
   });
   const [campaignForm, setCampaignForm] = useState({
     title: "",
-    accountId: "",
+    accountIds: [],
     templateId: "",
     messageBody: "",
     recipientsText: "",
@@ -369,6 +369,10 @@ export function useWhatsAppManager() {
 
   async function createCampaign(e) {
     e.preventDefault();
+    if (!campaignForm.accountIds.length) {
+      setNotice({ type: "error", text: "Select at least one sending session." });
+      return;
+    }
     if (!campaignForm.maxMessages) {
       setNotice({ type: "error", text: "Total messages to send is required." });
       return;
@@ -381,7 +385,7 @@ export function useWhatsAppManager() {
     try {
       await createCampaignApi(token, {
         title: campaignForm.title.trim(),
-        accountId: campaignForm.accountId,
+        accountIds: campaignForm.accountIds,
         templateId: campaignForm.templateId || undefined,
         messageBody: campaignForm.messageBody,
         recipientsText: campaignForm.recipientsText,
@@ -395,6 +399,7 @@ export function useWhatsAppManager() {
       setCampaignForm((prev) => ({
         ...prev,
         title: "",
+        accountIds: [],
         recipientsText: "",
         maxMessages: "",
         dailyMessageLimit: "",
