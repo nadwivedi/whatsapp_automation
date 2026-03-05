@@ -79,6 +79,7 @@ function App() {
           campaignForm={app.campaignForm}
           setCampaignForm={app.setCampaignForm}
           createCampaign={app.createCampaign}
+          updateCampaign={app.updateCampaign}
           busy={app.busy}
           accounts={app.accounts}
           templates={app.templates}

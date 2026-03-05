@@ -11,6 +11,13 @@ export function createCampaign(token, payload) {
   });
 }
 
+export function updateCampaign(token, campaignId, payload) {
+  return apiRequest(`/campaigns/${campaignId}`, {
+    token,
+    options: { method: "PATCH", body: JSON.stringify(payload) },
+  });
+}
+
 export function pauseCampaign(token, campaignId) {
   return apiRequest(`/campaigns/${campaignId}/pause`, { token, options: { method: "POST" } });
 }

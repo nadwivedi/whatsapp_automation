@@ -17,6 +17,7 @@ import {
   listCampaigns,
   pauseCampaign,
   resumeCampaign,
+  updateCampaign as updateCampaignApi,
 } from "../api/campaignsApi";
 import { countRecipients } from "../utils/formatters";
 
@@ -382,6 +383,15 @@ export function useWhatsAppManager() {
       setNotice({ type: "error", text: "Total messages to send is required." });
       return;
     }
+    if (!campaignForm.templateId) {
+      setNotice({ type: "error", text: "Please select a message template." });
+      return;
+    }
+    const selectedTemplate = templates.find((t) => t._id === campaignForm.templateId);
+    if (!selectedTemplate) {
+      setNotice({ type: "error", text: "Selected template is invalid." });
+      return;
+    }
     if (campaignForm.dateFrom && campaignForm.dateTo && campaignForm.dateFrom > campaignForm.dateTo) {
       setNotice({ type: "error", text: "Campaign From date cannot be later than Campaign To date." });
       return;
@@ -391,8 +401,8 @@ export function useWhatsAppManager() {
       await createCampaignApi(token, {
         title: campaignForm.title.trim(),
         accountIds: eligibleAccountIds,
-        templateId: campaignForm.templateId || undefined,
-        messageBody: campaignForm.messageBody,
+        templateId: campaignForm.templateId,
+        messageBody: selectedTemplate.body || "",
         recipientsText: campaignForm.recipientsText,
         maxMessages: Number(campaignForm.maxMessages),
         dailyMessageLimit: campaignForm.dailyMessageLimit
@@ -433,6 +443,26 @@ export function useWhatsAppManager() {
       await refreshAll();
     } catch (error) {
       setNotice({ type: "error", text: error.message });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function updateCampaign(campaignId, payload) {
+    if (payload.dateFrom && payload.dateTo && payload.dateFrom > payload.dateTo) {
+      setNotice({ type: "error", text: "Campaign From date cannot be later than Campaign To date." });
+      return false;
+    }
+
+    setBusy(`update-${campaignId}`);
+    try {
+      await updateCampaignApi(token, campaignId, payload);
+      setNotice({ type: "success", text: "Campaign updated." });
+      await refreshAll();
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
     } finally {
       setBusy("");
     }
@@ -527,6 +557,7 @@ export function useWhatsAppManager() {
     removeAccount,
     createTemplate,
     createCampaign,
+    updateCampaign,
     campaignAction,
     loadMessages,
     loadAllMessages,

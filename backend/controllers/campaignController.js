@@ -70,6 +70,9 @@ async function createCampaign(req, res) {
   if (!uniqueAccountIds.length) {
     return res.status(400).json({ message: "At least one account is required." });
   }
+  if (!templateId) {
+    return res.status(400).json({ message: "templateId is required." });
+  }
   if (maxMessages == null) {
     return res.status(400).json({ message: "maxMessages is required." });
   }
@@ -86,22 +89,18 @@ async function createCampaign(req, res) {
     });
   }
 
-  if (templateId) {
-    const template = await MessageTemplate.findOne({
-      _id: templateId,
-      owner: req.user._id,
-    });
-    if (!template || !template.isActive) {
-      return res.status(400).json({ message: "Selected template is invalid or inactive." });
-    }
-    if (!messageBody) {
-      messageBody = template.body;
-    }
-    mediaData = template.mediaData || null;
-    mediaType = template.mediaType || null;
-    mediaMimeType = template.mediaMimeType || null;
-    mediaFileName = template.mediaFileName || null;
+  const template = await MessageTemplate.findOne({
+    _id: templateId,
+    owner: req.user._id,
+  });
+  if (!template || !template.isActive) {
+    return res.status(400).json({ message: "Selected template is invalid or inactive." });
   }
+  messageBody = template.body;
+  mediaData = template.mediaData || null;
+  mediaType = template.mediaType || null;
+  mediaMimeType = template.mediaMimeType || null;
+  mediaFileName = template.mediaFileName || null;
 
   const normalizedBody = typeof messageBody === "string" ? messageBody.trim() : "";
   if (!normalizedBody && !mediaData) {
@@ -200,10 +199,105 @@ async function resumeCampaign(req, res) {
   return res.json({ campaign });
 }
 
+async function updateCampaign(req, res) {
+  const campaign = await Campaign.findOne({
+    _id: req.params.campaignId,
+    owner: req.user._id,
+  });
+  if (!campaign) {
+    return res.status(404).json({ message: "Campaign not found." });
+  }
+  if (!["queued", "paused", "running"].includes(campaign.status)) {
+    return res.status(400).json({ message: "Only queued, paused, or running campaigns can be edited." });
+  }
+
+  const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
+  const messageBody =
+    typeof req.body?.messageBody === "string" ? req.body.messageBody.trim() : "";
+  const dailyMessageLimit =
+    req.body?.dailyMessageLimit == null || req.body?.dailyMessageLimit === ""
+      ? null
+      : Number(req.body.dailyMessageLimit);
+  const dateFrom = req.body?.dateFrom ? String(req.body.dateFrom) : null;
+  const dateTo = req.body?.dateTo ? String(req.body.dateTo) : null;
+  const perNumberDailySafeguard =
+    req.body?.perNumberDailySafeguard == null || req.body?.perNumberDailySafeguard === ""
+      ? null
+      : Number(req.body.perNumberDailySafeguard);
+  const perNumberHourlySafeguard =
+    req.body?.perNumberHourlySafeguard == null || req.body?.perNumberHourlySafeguard === ""
+      ? null
+      : Number(req.body.perNumberHourlySafeguard);
+
+  if (!title) {
+    return res.status(400).json({ message: "title is required." });
+  }
+  if (!messageBody && !campaign.mediaData) {
+    return res.status(400).json({ message: "Campaign needs message text or media." });
+  }
+  if (
+    dailyMessageLimit != null &&
+    (!Number.isFinite(dailyMessageLimit) || dailyMessageLimit < 1 || dailyMessageLimit > 5000)
+  ) {
+    return res.status(400).json({ message: "dailyMessageLimit must be between 1 and 5000." });
+  }
+  if (dateFrom && !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
+    return res.status(400).json({ message: "dateFrom must be in YYYY-MM-DD format." });
+  }
+  if (dateTo && !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+    return res.status(400).json({ message: "dateTo must be in YYYY-MM-DD format." });
+  }
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    return res.status(400).json({ message: "dateFrom cannot be later than dateTo." });
+  }
+  if (
+    perNumberDailySafeguard != null &&
+    (!Number.isFinite(perNumberDailySafeguard) ||
+      perNumberDailySafeguard < 1 ||
+      perNumberDailySafeguard > 500)
+  ) {
+    return res
+      .status(400)
+      .json({ message: "perNumberDailySafeguard must be between 1 and 500." });
+  }
+  if (
+    perNumberHourlySafeguard != null &&
+    (!Number.isFinite(perNumberHourlySafeguard) ||
+      perNumberHourlySafeguard < 1 ||
+      perNumberHourlySafeguard > 100)
+  ) {
+    return res
+      .status(400)
+      .json({ message: "perNumberHourlySafeguard must be between 1 and 100." });
+  }
+
+  campaign.title = title;
+  campaign.messageBody = messageBody;
+  campaign.dailyMessageLimit = dailyMessageLimit;
+  campaign.dateFrom = dateFrom;
+  campaign.dateTo = dateTo;
+  campaign.perNumberDailySafeguard = perNumberDailySafeguard || 20;
+  campaign.perNumberHourlySafeguard = perNumberHourlySafeguard || 2;
+  await campaign.save();
+
+  await CampaignMessage.updateMany(
+    { owner: req.user._id, campaign: campaign._id, status: "pending" },
+    { $set: { text: messageBody } },
+  );
+
+  const hydrated = await Campaign.findById(campaign._id)
+    .populate("account", "name phoneNumber status dailyLimit sentToday")
+    .populate("accounts", "name phoneNumber status dailyLimit sentToday")
+    .populate("template", "name body mediaType mediaFileName");
+
+  return res.json({ campaign: hydrated });
+}
+
 module.exports = {
   listCampaigns,
   listCampaignMessages,
   createCampaign,
   pauseCampaign,
   resumeCampaign,
+  updateCampaign,
 };
