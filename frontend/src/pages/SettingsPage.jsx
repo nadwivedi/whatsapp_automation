@@ -55,6 +55,67 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
     };
   }, [activeConnectedAccounts, form.perMobileDailyLimit, form.perMobileHourlyLimit]);
 
+  const perMobileHourlyStatus = useMemo(() => {
+    const dailyLimit = Number(form.perMobileDailyLimit);
+    const hourlyLimit = Number(form.perMobileHourlyLimit);
+    const effectiveDailyLimit =
+      Number.isFinite(dailyLimit) && dailyLimit > 0 ? Math.floor(dailyLimit) : 0;
+    const effectiveHourlyLimit =
+      Number.isFinite(hourlyLimit) && hourlyLimit > 0 ? Math.floor(hourlyLimit) : 0;
+    const todayUtc = new Date().toISOString().slice(0, 10);
+
+    return activeConnectedAccounts
+      .map((account) => {
+        const accountDailyLimitRaw = Number(account.dailyLimit);
+        const accountDailyLimit = Number.isFinite(accountDailyLimitRaw) && accountDailyLimitRaw > 0
+          ? Math.floor(accountDailyLimitRaw)
+          : effectiveDailyLimit;
+        const dailyCap = Math.min(effectiveDailyLimit, accountDailyLimit);
+        const sentToday = Number(account.sentToday) || 0;
+        const dailyRemaining = Math.max(0, dailyCap - sentToday);
+        const sentOn = typeof account.sentOn === "string" && /^\d{4}-\d{2}-\d{2}$/.test(account.sentOn)
+          ? account.sentOn
+          : todayUtc;
+        const dayStartMs = new Date(`${sentOn}T00:00:00.000Z`).getTime();
+        const dailyResetAtMs = dayStartMs + 24 * 60 * 60 * 1000;
+
+        const sentThisHour = Number(account.sentThisHour) || 0;
+        const remaining = Math.max(0, effectiveHourlyLimit - sentThisHour);
+        const hourWindowStartMs = account.hourWindowStart
+          ? new Date(account.hourWindowStart).getTime()
+          : 0;
+        const resetAtMs = hourWindowStartMs ? hourWindowStartMs + 60 * 60 * 1000 : 0;
+
+        let lastSentLabel = "No message sent in current window.";
+        let resetLabel = "--";
+        if (resetAtMs) {
+          lastSentLabel = formatDate(new Date(hourWindowStartMs));
+          resetLabel = formatDate(new Date(resetAtMs));
+        }
+
+        return {
+          id: account._id,
+          mobileLabel: account.phoneNumber || account.name || "Unknown mobile",
+          sentToday,
+          dailyCap,
+          dailyRemaining,
+          dailyResetLabel: Number.isFinite(dailyResetAtMs)
+            ? formatDate(new Date(dailyResetAtMs))
+            : "--",
+          sentThisHour,
+          limit: effectiveHourlyLimit,
+          remaining,
+          lastSentLabel,
+          resetLabel,
+          usagePercent:
+            effectiveHourlyLimit > 0
+              ? Math.min(100, Math.round((sentThisHour / effectiveHourlyLimit) * 100))
+              : 0,
+        };
+      })
+      .sort((a, b) => a.mobileLabel.localeCompare(b.mobileLabel));
+  }, [activeConnectedAccounts, form.perMobileDailyLimit, form.perMobileHourlyLimit]);
+
   async function onSubmit(e) {
     e.preventDefault();
     const dailyLimit = Number(form.perMobileDailyLimit);
@@ -228,6 +289,50 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
               </div>
             </div>
           </form>
+        </div>
+      </div>
+
+      <div className="glass-panel-dark overflow-hidden rounded-2xl">
+        <div className="border-b border-slate-300/80 bg-gradient-to-r from-slate-200/80 via-emerald-100/70 to-cyan-100/70 px-4 py-4 sm:px-6 sm:py-5">
+          <h2 className="font-heading text-lg font-semibold text-slate-900 sm:text-xl">Limit Window by Mobile</h2>
+          <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+            Hourly reset = last sent time + 1 hour. Daily reset follows UTC day window.
+          </p>
+        </div>
+
+        <div className="p-4 sm:p-6">
+          {!perMobileHourlyStatus.length ? (
+            <p className="rounded-xl border border-slate-300/70 bg-slate-200/60 px-3 py-3 text-xs text-slate-600 sm:text-sm">
+              No active authenticated mobile sessions found.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {perMobileHourlyStatus.map((item) => (
+                <div key={item.id} className="rounded-xl border border-slate-300/80 bg-slate-200/65 p-3 sm:p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-heading text-xs font-semibold text-slate-800 sm:text-sm">{item.mobileLabel}</p>
+                    <span className="rounded-full bg-slate-300 px-2 py-0.5 text-[10px] font-semibold text-slate-700 sm:text-xs">
+                      {item.sentThisHour}/{item.limit}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-300/90">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-cyan-600 to-emerald-600"
+                      style={{ width: `${item.usagePercent}%` }}
+                    />
+                  </div>
+                  <div className="mt-2 space-y-1 text-[10px] text-slate-600 sm:text-xs">
+                    <p>Daily used: {item.sentToday}/{item.dailyCap}</p>
+                    <p>Daily remaining: {item.dailyRemaining}</p>
+                    <p>Daily resets at: {item.dailyResetLabel}</p>
+                    <p>Remaining this hour: {item.remaining}</p>
+                    <p>Last sent at: {item.lastSentLabel}</p>
+                    <p>Hourly resets at: {item.resetLabel}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </section>

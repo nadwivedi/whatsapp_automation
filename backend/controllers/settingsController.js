@@ -17,7 +17,37 @@ async function buildCapacity(ownerId, perMobileDailyLimit, perMobileHourlyLimit)
     owner: ownerId,
     isActive: true,
     status: "authenticated",
-  }).select("dailyLimit sentToday sentThisHour");
+  }).select("dailyLimit sentToday sentOn sentThisHour hourWindowStart");
+
+  const updates = [];
+  for (const account of activeConnectedAccounts) {
+    const prevSentOn = account.sentOn;
+    const prevSentToday = account.sentToday;
+    const prevSentThisHour = account.sentThisHour;
+    const prevHourWindowStart = account.hourWindowStart
+      ? new Date(account.hourWindowStart).getTime()
+      : 0;
+
+    WaAccount.resetDailyWindowIfNeeded(account);
+    WaAccount.resetHourlyWindowIfNeeded(account);
+
+    const nextHourWindowStart = account.hourWindowStart
+      ? new Date(account.hourWindowStart).getTime()
+      : 0;
+    const hasChanged =
+      prevSentOn !== account.sentOn ||
+      prevSentToday !== account.sentToday ||
+      prevSentThisHour !== account.sentThisHour ||
+      prevHourWindowStart !== nextHourWindowStart;
+
+    if (hasChanged) {
+      updates.push(account.save());
+    }
+  }
+
+  if (updates.length) {
+    await Promise.all(updates);
+  }
 
   const activeConnectedCount = activeConnectedAccounts.length;
   const maxMessagesNext24Hours = activeConnectedCount * perMobileDailyLimit;

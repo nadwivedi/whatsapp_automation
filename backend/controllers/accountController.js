@@ -37,6 +37,37 @@ async function cleanupCampaignDataForAccounts(ownerId, accountIds) {
 
 async function listAccounts(req, res) {
   const accounts = await WaAccount.find({ owner: req.user._id }).sort({ createdAt: -1 });
+
+  const updates = [];
+  for (const account of accounts) {
+    const prevSentOn = account.sentOn;
+    const prevSentToday = account.sentToday;
+    const prevSentThisHour = account.sentThisHour;
+    const prevHourWindowStart = account.hourWindowStart
+      ? new Date(account.hourWindowStart).getTime()
+      : 0;
+
+    WaAccount.resetDailyWindowIfNeeded(account);
+    WaAccount.resetHourlyWindowIfNeeded(account);
+
+    const nextHourWindowStart = account.hourWindowStart
+      ? new Date(account.hourWindowStart).getTime()
+      : 0;
+    const hasChanged =
+      prevSentOn !== account.sentOn ||
+      prevSentToday !== account.sentToday ||
+      prevSentThisHour !== account.sentThisHour ||
+      prevHourWindowStart !== nextHourWindowStart;
+
+    if (hasChanged) {
+      updates.push(account.save());
+    }
+  }
+
+  if (updates.length) {
+    await Promise.all(updates);
+  }
+
   res.json({ accounts });
 }
 

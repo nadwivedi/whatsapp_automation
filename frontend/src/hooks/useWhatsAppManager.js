@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { TOKEN_KEY } from "../api/client";
-import { getMe, login, register } from "../api/authApi";
+import { getMe, login, logout as logoutApi, register } from "../api/authApi";
 import {
   createAccount as createAccountApi,
   deleteAccount as deleteAccountApi,
@@ -32,7 +31,7 @@ const DEFAULT_SETTINGS = {
 };
 
 export function useWhatsAppManager() {
-  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || "");
+  const [token, setToken] = useState("session");
   const [profile, setProfile] = useState(null);
 
   const [accounts, setAccounts] = useState([]);
@@ -132,16 +131,23 @@ export function useWhatsAppManager() {
 
     let cancelled = false;
     const onUnauthorized = () => {
-      localStorage.removeItem(TOKEN_KEY);
       if (!cancelled) {
         setToken("");
-        setNotice({ type: "error", text: "Session expired. Please login again." });
+        if (!booting) {
+          setNotice({ type: "error", text: "Session expired. Please login again." });
+        }
       }
     };
 
     async function loadProfile(activeToken) {
-      const payload = await getMe(activeToken, onUnauthorized);
-      if (!cancelled) setProfile(payload);
+      try {
+        const payload = await getMe(activeToken, onUnauthorized);
+        if (!cancelled) setProfile(payload);
+      } catch (error) {
+        if (!cancelled && error.message !== "Unauthorized.") {
+          setNotice({ type: "error", text: error.message });
+        }
+      }
     }
 
     async function loadDashboard(activeToken, { silent = false } = {}) {
@@ -171,7 +177,9 @@ export function useWhatsAppManager() {
           });
         }
       } catch (error) {
-        if (!cancelled) setNotice({ type: "error", text: error.message });
+        if (!cancelled && error.message !== "Unauthorized.") {
+          setNotice({ type: "error", text: error.message });
+        }
       } finally {
         if (!cancelled) {
           setDashboardLoading(false);
@@ -198,13 +206,17 @@ export function useWhatsAppManager() {
   async function refreshAll() {
     if (!token) return;
     setRefreshing(true);
+    const onUnauthorized = () => {
+      setToken("");
+      setNotice({ type: "error", text: "Session expired. Please login again." });
+    };
     try {
       const [profilePayload, a, t, c, s] = await Promise.all([
-        getMe(token),
-        listAccounts(token),
-        listTemplates(token),
-        listCampaigns(token),
-        getSettingsApi(token),
+        getMe(token, onUnauthorized),
+        listAccounts(token, onUnauthorized),
+        listTemplates(token, onUnauthorized),
+        listCampaigns(token, onUnauthorized),
+        getSettingsApi(token, onUnauthorized),
       ]);
       setProfile(profilePayload);
       setAccounts(a.accounts || []);
@@ -212,16 +224,23 @@ export function useWhatsAppManager() {
       setCampaigns(c.campaigns || []);
       setSettings(s.settings || DEFAULT_SETTINGS);
     } catch (error) {
-      setNotice({ type: "error", text: error.message });
+      if (error.message !== "Unauthorized.") {
+        setNotice({ type: "error", text: error.message });
+      }
     } finally {
       setRefreshing(false);
     }
   }
 
-  function logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    setToken("");
-    setNotice({ type: "success", text: "Logged out." });
+  async function logout() {
+    try {
+      await logoutApi();
+    } catch (_error) {
+      // Session may already be missing/expired; keep local logout behavior.
+    } finally {
+      setToken("");
+      setNotice({ type: "success", text: "Logged out." });
+    }
   }
 
   async function submitAuth(e) {
@@ -240,8 +259,7 @@ export function useWhatsAppManager() {
               password: authForm.password,
             });
 
-      localStorage.setItem(TOKEN_KEY, payload.token);
-      setToken(payload.token);
+      setToken("session");
       setProfile({ user: payload.user, stats: payload.stats });
       setAuthForm({ name: "", mobileNumber: "", password: "" });
       setNotice({

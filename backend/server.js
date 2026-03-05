@@ -19,6 +19,18 @@ function loadDotEnv() {
 
 loadDotEnv();
 
+function assertSecurityConfig() {
+  const authSecret = process.env.AUTH_SECRET || "";
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!authSecret || authSecret === "change-this-secret-in-production")
+  ) {
+    throw new Error("AUTH_SECRET must be set to a strong value in production.");
+  }
+}
+
+assertSecurityConfig();
+
 const app = require("./app");
 const connectMongo = require("./db/connectMongo");
 const campaignQueue = require("./services/campaignQueue");

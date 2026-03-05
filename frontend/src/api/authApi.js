@@ -12,6 +12,12 @@ export function register(payload) {
   });
 }
 
-export function getMe(token, onUnauthorized) {
-  return apiRequest("/auth/me", { token, onUnauthorized });
+export function logout() {
+  return apiRequest("/auth/logout", {
+    options: { method: "POST" },
+  });
+}
+
+export function getMe(_token, onUnauthorized) {
+  return apiRequest("/auth/me", { onUnauthorized });
 }

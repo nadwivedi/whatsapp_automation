@@ -98,8 +98,14 @@ waAccountSchema.statics.resetDailyWindowIfNeeded = function resetDailyWindowIfNe
 waAccountSchema.statics.resetHourlyWindowIfNeeded = function resetHourlyWindowIfNeeded(account) {
   const now = Date.now();
   const hourStart = account.hourWindowStart ? new Date(account.hourWindowStart).getTime() : 0;
-  if (!hourStart || now - hourStart >= 60 * 60 * 1000) {
-    account.hourWindowStart = new Date();
+  if (!hourStart) {
+    if ((Number(account.sentThisHour) || 0) !== 0) {
+      account.sentThisHour = 0;
+    }
+    return account;
+  }
+  if (now - hourStart >= 60 * 60 * 1000) {
+    account.hourWindowStart = null;
     account.sentThisHour = 0;
   }
   return account;

@@ -1,12 +1,10 @@
 const { User } = require("../models/User");
-const { verifyAuthToken } = require("../utils/auth");
+const { readAuthTokenFromRequest, verifyAuthToken } = require("../utils/auth");
 
 async function requireAuth(req, res, next) {
   try {
-    const header = req.headers.authorization || "";
-    const [scheme, token] = header.split(" ");
-
-    if (scheme !== "Bearer" || !token) {
+    const token = readAuthTokenFromRequest(req);
+    if (!token) {
       return res.status(401).json({ message: "Unauthorized." });
     }
 

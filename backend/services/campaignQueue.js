@@ -377,6 +377,7 @@ class CampaignQueue {
 
         selectedAccount.sentToday += 1;
         selectedAccount.sentThisHour += 1;
+        selectedAccount.hourWindowStart = new Date();
         this.markAccountSent(selectedAccount._id);
 
         await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save()]);

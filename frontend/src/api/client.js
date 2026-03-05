@@ -1,15 +1,18 @@
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/$/, "");
-export const TOKEN_KEY = "wa_auth_token";
 
-export async function apiRequest(path, { token = "", options = {}, onUnauthorized } = {}) {
+export async function apiRequest(path, { options = {}, onUnauthorized } = {}) {
+  const headers = {
+    ...(options.headers || {}),
+  };
+
+  if (options.body && !("Content-Type" in headers)) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
     ...options,
+    headers,
   });
 
   const data = await res.json().catch(() => ({}));

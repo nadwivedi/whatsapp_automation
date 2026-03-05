@@ -1,7 +1,20 @@
-﻿const { createHmac, randomBytes, scryptSync, timingSafeEqual } = require("crypto");
+const { createHmac, randomBytes, scryptSync, timingSafeEqual } = require("crypto");
 
 const AUTH_SECRET = process.env.AUTH_SECRET || "change-this-secret-in-production";
 const AUTH_TOKEN_TTL_SECONDS = Number(process.env.AUTH_TOKEN_TTL_SECONDS || 60 * 60 * 24 * 7);
+const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || "wa_auth_session";
+const AUTH_COOKIE_SAME_SITE = process.env.AUTH_COOKIE_SAME_SITE || "lax";
+const AUTH_COOKIE_SECURE =
+  process.env.AUTH_COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
+
+function safeTimingEqual(leftValue, rightValue) {
+  const left = Buffer.from(leftValue);
+  const right = Buffer.from(rightValue);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
+}
 
 function toBase64Url(value) {
   return Buffer.from(value)
@@ -30,7 +43,7 @@ function verifyPassword(password, storedHash) {
 
   const [salt, expectedHex] = storedHash.split(":");
   const derivedHex = scryptSync(password, salt, 64).toString("hex");
-  return timingSafeEqual(Buffer.from(derivedHex, "hex"), Buffer.from(expectedHex, "hex"));
+  return safeTimingEqual(Buffer.from(derivedHex, "hex"), Buffer.from(expectedHex, "hex"));
 }
 
 function issueToken(payload) {
@@ -71,7 +84,7 @@ function verifyToken(token) {
     .replace(/\+/g, "-")
     .replace(/\//g, "_");
 
-  if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+  if (!safeTimingEqual(signature, expectedSignature)) {
     return null;
   }
 
@@ -102,11 +115,70 @@ function verifyAuthToken(token) {
   return payload;
 }
 
+function parseCookieHeader(cookieHeader) {
+  const pairs = String(cookieHeader || "")
+    .split(";")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const cookies = {};
+  for (const pair of pairs) {
+    const idx = pair.indexOf("=");
+    if (idx < 1) continue;
+
+    const key = pair.slice(0, idx).trim();
+    const value = pair.slice(idx + 1).trim();
+    try {
+      cookies[key] = decodeURIComponent(value);
+    } catch (_error) {
+      cookies[key] = value;
+    }
+  }
+  return cookies;
+}
+
+function readAuthTokenFromRequest(req) {
+  const header = req?.headers?.authorization || "";
+  const [scheme, token] = header.split(" ");
+  if (scheme === "Bearer" && token) {
+    return token;
+  }
+
+  const cookies = parseCookieHeader(req?.headers?.cookie || "");
+  return cookies[AUTH_COOKIE_NAME] || "";
+}
+
+function getAuthCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: AUTH_COOKIE_SECURE,
+    sameSite: AUTH_COOKIE_SAME_SITE,
+    maxAge: AUTH_TOKEN_TTL_SECONDS * 1000,
+    path: "/",
+  };
+}
+
+function attachAuthCookie(res, token) {
+  res.cookie(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
+}
+
+function clearAuthCookie(res) {
+  res.clearCookie(AUTH_COOKIE_NAME, {
+    ...getAuthCookieOptions(),
+    maxAge: 0,
+  });
+}
+
 module.exports = {
+  AUTH_COOKIE_NAME,
+  AUTH_TOKEN_TTL_SECONDS,
   hashPassword,
   verifyPassword,
   signAuthToken,
   verifyAuthToken,
+  readAuthTokenFromRequest,
+  attachAuthCookie,
+  clearAuthCookie,
   issueToken,
   verifyToken,
 };
