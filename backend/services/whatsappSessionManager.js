@@ -6,6 +6,7 @@ const AUTH_DATA_PATH = process.env.AUTH_DATA_PATH || process.env.WHATSAPP_AUTH_D
 class WhatsappSessionManager {
   constructor() {
     this.clients = new Map();
+    this.startingSessions = new Map();
   }
 
   isRecoverableProtocolError(error) {
@@ -16,6 +17,11 @@ class WhatsappSessionManager {
       message.includes("Target closed") ||
       message.includes("Session closed")
     );
+  }
+
+  isProfileLockedError(error) {
+    const message = String(error?.message || "");
+    return message.includes("The browser is already running for");
   }
 
   async resetClient(accountId, reason = "Session reset requested.") {
@@ -47,12 +53,28 @@ class WhatsappSessionManager {
   }
 
   async startSession(accountId) {
+    const mapKey = String(accountId);
+    const inFlightStart = this.startingSessions.get(mapKey);
+    if (inFlightStart) {
+      return inFlightStart;
+    }
+
+    const startPromise = this.startSessionInternal(accountId, mapKey);
+    this.startingSessions.set(mapKey, startPromise);
+
+    try {
+      return await startPromise;
+    } finally {
+      this.startingSessions.delete(mapKey);
+    }
+  }
+
+  async startSessionInternal(accountId, mapKey) {
     const account = await WaAccount.findById(accountId);
     if (!account || !account.isActive) {
       throw new Error("Account not found or inactive.");
     }
 
-    const mapKey = String(account._id);
     if (this.clients.has(mapKey)) {
       const existingClient = this.clients.get(mapKey);
       try {
@@ -140,11 +162,14 @@ class WhatsappSessionManager {
       await client.initialize();
     } catch (error) {
       this.clients.delete(mapKey);
+      const errorMessage = this.isProfileLockedError(error)
+        ? "Session is already open in another browser process. Stop that process and retry."
+        : error.message;
       await this.updateAccount(account._id, {
         status: "auth_failure",
-        lastError: error.message,
+        lastError: errorMessage,
       });
-      throw error;
+      throw new Error(errorMessage);
     }
 
     return WaAccount.findById(account._id);
@@ -152,6 +177,11 @@ class WhatsappSessionManager {
 
   async stopSession(accountId) {
     const mapKey = String(accountId);
+    const inFlightStart = this.startingSessions.get(mapKey);
+    if (inFlightStart) {
+      await inFlightStart.catch(() => {});
+    }
+
     const client = this.clients.get(mapKey);
     if (client) {
       await client.destroy();
