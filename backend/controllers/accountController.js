@@ -51,6 +51,18 @@ async function createAccount(req, res) {
     });
   }
 
+  if (cleanedPhone) {
+    const existingAccount = await WaAccount.findOne({
+      owner: req.user._id,
+      phoneNumber: cleanedPhone,
+    });
+    if (existingAccount) {
+      return res.status(400).json({
+        message: "A session already exists for this phone number. Please use the existing session or delete it first.",
+      });
+    }
+  }
+
   const resolvedName =
     typeof name === "string" && name.trim()
       ? name.trim()
