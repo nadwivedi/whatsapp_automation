@@ -11,6 +11,17 @@ import {
 } from "../api/accountsApi";
 import { createTemplate as createTemplateApi, listTemplates, deleteTemplate as deleteTemplateApi } from "../api/templatesApi";
 import {
+  createBusinessCategory as createBusinessCategoryApi,
+  deleteBusinessCategory as deleteBusinessCategoryApi,
+  listBusinessCategories,
+} from "../api/businessCategoriesApi";
+import {
+  bulkInsertBusinesses as bulkInsertBusinessesApi,
+  createBusiness as createBusinessApi,
+  deleteBusiness as deleteBusinessApi,
+  listBusinesses,
+} from "../api/businessesApi";
+import {
   createCampaign as createCampaignApi,
   getCampaignMessages,
   listCampaigns,
@@ -36,6 +47,8 @@ export function useWhatsAppManager() {
 
   const [accounts, setAccounts] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [businessCategories, setBusinessCategories] = useState([]);
+  const [businesses, setBusinesses] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [allMessages, setAllMessages] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
@@ -120,6 +133,8 @@ export function useWhatsAppManager() {
       setProfile(null);
       setAccounts([]);
       setTemplates([]);
+      setBusinessCategories([]);
+      setBusinesses([]);
       setCampaigns([]);
       setAllMessages([]);
       setSelectedCampaign(null);
@@ -155,9 +170,11 @@ export function useWhatsAppManager() {
         else setDashboardLoading(true);
       }
       try {
-        const [a, t, c, s] = await Promise.all([
+        const [a, t, bc, b, c, s] = await Promise.all([
           listAccounts(activeToken, onUnauthorized),
           listTemplates(activeToken, onUnauthorized),
+          listBusinessCategories(activeToken, onUnauthorized),
+          listBusinesses(activeToken, onUnauthorized),
           listCampaigns(activeToken, onUnauthorized),
           getSettingsApi(activeToken, onUnauthorized),
         ]);
@@ -165,6 +182,8 @@ export function useWhatsAppManager() {
         if (!cancelled) {
           setAccounts(a.accounts || []);
           setTemplates(t.templates || []);
+          setBusinessCategories(bc.categories || []);
+          setBusinesses(b.businesses || []);
           setCampaigns(c.campaigns || []);
           setSettings(s.settings || DEFAULT_SETTINGS);
           setDailyDrafts((prev) => {
@@ -210,16 +229,20 @@ export function useWhatsAppManager() {
       setNotice({ type: "error", text: "Session expired. Please login again." });
     };
     try {
-      const [profilePayload, a, t, c, s] = await Promise.all([
+      const [profilePayload, a, t, bc, b, c, s] = await Promise.all([
         getMe(token, onUnauthorized),
         listAccounts(token, onUnauthorized),
         listTemplates(token, onUnauthorized),
+        listBusinessCategories(token, onUnauthorized),
+        listBusinesses(token, onUnauthorized),
         listCampaigns(token, onUnauthorized),
         getSettingsApi(token, onUnauthorized),
       ]);
       setProfile(profilePayload);
       setAccounts(a.accounts || []);
       setTemplates(t.templates || []);
+      setBusinessCategories(bc.categories || []);
+      setBusinesses(b.businesses || []);
       setCampaigns(c.campaigns || []);
       setSettings(s.settings || DEFAULT_SETTINGS);
     } catch (error) {
@@ -595,11 +618,97 @@ export function useWhatsAppManager() {
     }
   }
 
+  async function createBusinessCategory(payload) {
+    setBusy("create-business-category");
+    try {
+      await createBusinessCategoryApi(token, payload);
+      setNotice({ type: "success", text: "Business category created." });
+      await refreshAll();
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteBusinessCategory(category) {
+    const yes = window.confirm(`Delete category "${category.name}"?`);
+    if (!yes) return false;
+
+    setBusy(`delete-business-category-${category._id}`);
+    try {
+      await deleteBusinessCategoryApi(token, category._id);
+      setNotice({ type: "success", text: "Business category deleted." });
+      await refreshAll();
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function createBusiness(payload) {
+    setBusy("create-business");
+    try {
+      await createBusinessApi(token, payload);
+      setNotice({ type: "success", text: "Business saved." });
+      await refreshAll();
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function bulkInsertBusinesses(payload) {
+    setBusy("bulk-business-json");
+    try {
+      const response = await bulkInsertBusinessesApi(token, payload);
+      setNotice({
+        type: "success",
+        text: `${response.insertedCount || 0} business records inserted.`,
+      });
+      await refreshAll();
+      return response;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return null;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteBusiness(business) {
+    const yes = window.confirm(`Delete business "${business.businessName}"?`);
+    if (!yes) return false;
+
+    setBusy(`delete-business-${business._id}`);
+    try {
+      await deleteBusinessApi(token, business._id);
+      setNotice({ type: "success", text: "Business deleted." });
+      await refreshAll();
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
   return {
     token,
     profile,
     accounts,
     templates,
+    businessCategories,
+    businesses,
     campaigns,
     allMessages,
     selectedCampaign,
@@ -644,6 +753,11 @@ export function useWhatsAppManager() {
     removeAccount,
     createTemplate,
     deleteTemplate,
+    createBusinessCategory,
+    deleteBusinessCategory,
+    createBusiness,
+    bulkInsertBusinesses,
+    deleteBusiness,
     createCampaign,
     deleteCampaign,
     updateCampaign,

@@ -7,6 +7,8 @@ import { getRouteKey } from "./router/routes";
 import DashboardPage from "./pages/DashboardPage";
 import SessionsPage from "./pages/SessionsPage";
 import TemplatesPage from "./pages/TemplatesPage";
+import BusinessCategoriesPage from "./pages/BusinessCategoriesPage";
+import BusinessesPage from "./pages/BusinessesPage";
 import CampaignsPage from "./pages/CampaignsPage";
 import MessagesPage from "./pages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -69,6 +71,36 @@ function App() {
           templates={app.templates}
           dashboardLoading={app.dashboardLoading}
           setNotice={app.setNotice}
+        />
+      );
+    }
+
+    if (activeRoute === "businessCategories") {
+      return (
+        <BusinessCategoriesPage
+          refreshing={app.refreshing}
+          refreshAll={app.refreshAll}
+          busy={app.busy}
+          businessCategories={app.businessCategories}
+          createBusinessCategory={app.createBusinessCategory}
+          deleteBusinessCategory={app.deleteBusinessCategory}
+          dashboardLoading={app.dashboardLoading}
+        />
+      );
+    }
+
+    if (activeRoute === "businesses") {
+      return (
+        <BusinessesPage
+          refreshing={app.refreshing}
+          refreshAll={app.refreshAll}
+          busy={app.busy}
+          businessCategories={app.businessCategories}
+          businesses={app.businesses}
+          createBusiness={app.createBusiness}
+          bulkInsertBusinesses={app.bulkInsertBusinesses}
+          deleteBusiness={app.deleteBusiness}
+          dashboardLoading={app.dashboardLoading}
         />
       );
     }
