@@ -43,14 +43,25 @@ class CampaignQueue {
     this.lastSendByAccount.set(String(accountId), Date.now());
   }
 
+  resetCampaignDailyWindowIfNeeded(campaign) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (campaign.sentOn !== today) {
+      campaign.sentOn = today;
+      campaign.sentToday = 0;
+    }
+  }
+
   async enqueueCampaign(payload) {
-    const recipients = parseRecipients(payload.recipientsText || "");
+    let recipients = parseRecipients(payload.recipientsText || "");
     if (!recipients.length) {
       throw new Error("No valid recipient numbers were found.");
     }
 
     if (recipients.length > 5000) {
       throw new Error("Recipient list too large. Keep it <= 5000 numbers per campaign.");
+    }
+    if (payload.maxMessages != null) {
+      recipients = recipients.slice(0, payload.maxMessages);
     }
 
     if (!payload.ownerId) {
@@ -66,8 +77,9 @@ class CampaignQueue {
     }
 
     const messageBody = (payload.messageBody || "").trim();
-    if (!messageBody) {
-      throw new Error("Message body is required.");
+    const mediaData = payload.mediaData || null;
+    if (!messageBody && !mediaData) {
+      throw new Error("Campaign needs message text or media.");
     }
 
     const title = (payload.title || "").trim() || `Campaign ${new Date().toLocaleString()}`;
@@ -78,6 +90,14 @@ class CampaignQueue {
       template: payload.templateId || null,
       title,
       messageBody,
+      mediaType: payload.mediaType || null,
+      mediaMimeType: payload.mediaMimeType || null,
+      mediaData,
+      mediaFileName: payload.mediaFileName || null,
+      maxMessages: payload.maxMessages || null,
+      dailyMessageLimit: payload.dailyMessageLimit || null,
+      dateFrom: payload.dateFrom || null,
+      dateTo: payload.dateTo || null,
       status: "queued",
       totalRecipients: recipients.length,
       queuedCount: recipients.length,
@@ -127,6 +147,39 @@ class CampaignQueue {
         campaign.status = "running";
         campaign.startedAt = new Date();
         await campaign.save();
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      if (campaign.dateFrom && today < campaign.dateFrom) {
+        campaign.lastError = `Campaign is scheduled from ${campaign.dateFrom}.`;
+        await campaign.save();
+        return;
+      }
+      if (campaign.dateTo && today > campaign.dateTo) {
+        const pendingCount = await CampaignMessage.countDocuments({
+          owner: campaign.owner,
+          campaign: campaign._id,
+          status: "pending",
+        });
+        campaign.failedCount += pendingCount;
+        campaign.queuedCount = 0;
+        campaign.status = campaign.sentCount > 0 ? "completed" : "failed";
+        campaign.completedAt = new Date();
+        campaign.lastError = `Campaign window ended on ${campaign.dateTo}.`;
+        await Promise.all([
+          campaign.save(),
+          CampaignMessage.updateMany(
+            { owner: campaign.owner, campaign: campaign._id, status: "pending" },
+            { $set: { status: "failed", error: `Campaign window ended on ${campaign.dateTo}.` } },
+          ),
+        ]);
+        return;
+      }
+      this.resetCampaignDailyWindowIfNeeded(campaign);
+      if (campaign.dailyMessageLimit && campaign.sentToday >= campaign.dailyMessageLimit) {
+        campaign.lastError = `Daily campaign limit reached (${campaign.dailyMessageLimit}/day).`;
+        await campaign.save();
+        return;
       }
 
       const account = await WaAccount.findById(campaign.account);
@@ -185,11 +238,18 @@ class CampaignQueue {
       }
 
       try {
-        const providerMessageId = await whatsappSessionManager.sendTextMessage(
-          account._id,
-          message.recipient,
-          message.text,
-        );
+        const providerMessageId = campaign.mediaData
+          ? await whatsappSessionManager.sendMediaMessage(
+              account._id,
+              message.recipient,
+              {
+                mediaData: campaign.mediaData,
+                mediaMimeType: campaign.mediaMimeType,
+                mediaFileName: campaign.mediaFileName,
+              },
+              message.text,
+            )
+          : await whatsappSessionManager.sendTextMessage(account._id, message.recipient, message.text);
 
         message.status = "sent";
         message.sentAt = new Date();
@@ -199,6 +259,7 @@ class CampaignQueue {
 
         campaign.sentCount += 1;
         campaign.queuedCount -= 1;
+        campaign.sentToday += 1;
         campaign.lastError = null;
 
         account.sentToday += 1;

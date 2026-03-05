@@ -46,13 +46,24 @@ export function useWhatsAppManager() {
   const [authForm, setAuthForm] = useState({ name: "", mobileNumber: "", password: "" });
 
   const [accountForm, setAccountForm] = useState({ name: "", phoneNumber: "", dailyLimit: 20 });
-  const [templateForm, setTemplateForm] = useState({ name: "", body: "" });
+  const [templateForm, setTemplateForm] = useState({
+    name: "",
+    body: "",
+    mediaData: "",
+    mediaFileName: "",
+    mediaMimeType: "",
+    mediaType: "",
+  });
   const [campaignForm, setCampaignForm] = useState({
     title: "",
     accountId: "",
     templateId: "",
     messageBody: "",
     recipientsText: "",
+    maxMessages: "",
+    dailyMessageLimit: "",
+    dateFrom: "",
+    dateTo: "",
   });
 
   const stats = useMemo(() => {
@@ -336,8 +347,17 @@ export function useWhatsAppManager() {
       await createTemplateApi(token, {
         name: templateForm.name.trim(),
         body: templateForm.body.trim(),
+        mediaData: templateForm.mediaData || undefined,
+        mediaFileName: templateForm.mediaFileName || undefined,
       });
-      setTemplateForm({ name: "", body: "" });
+      setTemplateForm({
+        name: "",
+        body: "",
+        mediaData: "",
+        mediaFileName: "",
+        mediaMimeType: "",
+        mediaType: "",
+      });
       setNotice({ type: "success", text: "Template created." });
       await refreshAll();
     } catch (error) {
@@ -349,6 +369,10 @@ export function useWhatsAppManager() {
 
   async function createCampaign(e) {
     e.preventDefault();
+    if (campaignForm.dateFrom && campaignForm.dateTo && campaignForm.dateFrom > campaignForm.dateTo) {
+      setNotice({ type: "error", text: "Campaign From date cannot be later than Campaign To date." });
+      return;
+    }
     setBusy("create-campaign");
     try {
       await createCampaignApi(token, {
@@ -357,8 +381,22 @@ export function useWhatsAppManager() {
         templateId: campaignForm.templateId || undefined,
         messageBody: campaignForm.messageBody,
         recipientsText: campaignForm.recipientsText,
+        maxMessages: campaignForm.maxMessages ? Number(campaignForm.maxMessages) : undefined,
+        dailyMessageLimit: campaignForm.dailyMessageLimit
+          ? Number(campaignForm.dailyMessageLimit)
+          : undefined,
+        dateFrom: campaignForm.dateFrom || undefined,
+        dateTo: campaignForm.dateTo || undefined,
       });
-      setCampaignForm((prev) => ({ ...prev, title: "", recipientsText: "" }));
+      setCampaignForm((prev) => ({
+        ...prev,
+        title: "",
+        recipientsText: "",
+        maxMessages: "",
+        dailyMessageLimit: "",
+        dateFrom: "",
+        dateTo: "",
+      }));
       setNotice({ type: "success", text: "Campaign queued." });
       await refreshAll();
     } catch (error) {

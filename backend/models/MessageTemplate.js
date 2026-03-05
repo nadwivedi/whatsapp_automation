@@ -17,10 +17,29 @@ const messageTemplateSchema = new mongoose.Schema(
     },
     body: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
-      minlength: 1,
       maxlength: 4096,
+    },
+    mediaType: {
+      type: String,
+      enum: ["image", "video", null],
+      default: null,
+    },
+    mediaMimeType: {
+      type: String,
+      default: null,
+      maxlength: 120,
+    },
+    mediaData: {
+      type: String,
+      default: null,
+      maxlength: 12 * 1024 * 1024,
+    },
+    mediaFileName: {
+      type: String,
+      default: null,
+      maxlength: 180,
     },
     isActive: {
       type: Boolean,

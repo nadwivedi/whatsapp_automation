@@ -1,11 +1,41 @@
 const QRCode = require("qrcode");
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const { WaAccount } = require("../models/WaAccount");
 const settings = require("../config/settings");
 
 class WhatsappSessionManager {
   constructor() {
     this.clients = new Map();
+  }
+
+  isRecoverableProtocolError(error) {
+    const message = String(error?.message || "");
+    return (
+      message.includes("Execution context was destroyed") ||
+      message.includes("Cannot find context with specified id") ||
+      message.includes("Target closed") ||
+      message.includes("Session closed")
+    );
+  }
+
+  async resetClient(accountId, reason = "Session reset requested.") {
+    const mapKey = String(accountId);
+    const client = this.clients.get(mapKey);
+    if (client) {
+      try {
+        await client.destroy();
+      } catch (_error) {
+        // Ignore destroy errors while resetting stale clients.
+      } finally {
+        this.clients.delete(mapKey);
+      }
+    }
+
+    await this.updateAccount(accountId, {
+      status: "disconnected",
+      qrCodeDataUrl: null,
+      lastError: reason,
+    });
   }
 
   hasClient(accountId) {
@@ -24,7 +54,19 @@ class WhatsappSessionManager {
 
     const mapKey = String(account._id);
     if (this.clients.has(mapKey)) {
-      return account;
+      const existingClient = this.clients.get(mapKey);
+      try {
+        await existingClient.getState();
+        return account;
+      } catch (error) {
+        if (!this.isRecoverableProtocolError(error)) {
+          throw error;
+        }
+        await this.resetClient(
+          account._id,
+          "Recovered from stale browser context. Please scan QR again if prompted.",
+        );
+      }
     }
 
     const client = new Client({
@@ -66,6 +108,7 @@ class WhatsappSessionManager {
       await this.updateAccount(account._id, {
         status: "authenticated",
         phoneNumber,
+        lastConnectedAt: new Date(),
         qrCodeDataUrl: null,
         lastError: null,
       });
@@ -144,15 +187,81 @@ class WhatsappSessionManager {
       throw new Error("Recipient number is invalid.");
     }
 
-    const numberId = await client.getNumberId(normalized);
-    if (!numberId?._serialized) {
-      throw new Error(`Recipient ${normalized} is not a valid WhatsApp number.`);
-    }
-
     try {
+      const numberId = await client.getNumberId(normalized);
+      if (!numberId?._serialized) {
+        throw new Error(`Recipient ${normalized} is not a valid WhatsApp number.`);
+      }
+
       const result = await client.sendMessage(numberId._serialized, text);
       return result?.id?._serialized || null;
     } catch (error) {
+      if (this.isRecoverableProtocolError(error)) {
+        await this.resetClient(
+          accountId,
+          "WhatsApp browser context reset. Open Show QR and reconnect the session.",
+        );
+        throw new Error("Session context was reset. Please open Show QR and reconnect.");
+      }
+      if (typeof error?.message === "string" && error.message.includes("No LID for user")) {
+        throw new Error(`Recipient ${normalized} is not reachable on WhatsApp.`);
+      }
+      throw error;
+    }
+  }
+
+  parseMediaDataUrl(mediaData, fallbackMime = "application/octet-stream") {
+    if (typeof mediaData !== "string") {
+      throw new Error("Media payload is invalid.");
+    }
+
+    const match = mediaData.match(/^data:([^;]+);base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) {
+      throw new Error("Media payload format is invalid.");
+    }
+
+    return {
+      mimeType: match[1] || fallbackMime,
+      base64Data: match[2],
+    };
+  }
+
+  async sendMediaMessage(accountId, recipient, media, caption = "") {
+    const client = this.getClient(accountId);
+    if (!client) {
+      throw new Error("WhatsApp session is not active for this account.");
+    }
+
+    const normalized = this.normalizeRecipient(recipient);
+    if (!normalized) {
+      throw new Error("Recipient number is invalid.");
+    }
+
+    try {
+      const numberId = await client.getNumberId(normalized);
+      if (!numberId?._serialized) {
+        throw new Error(`Recipient ${normalized} is not a valid WhatsApp number.`);
+      }
+
+      const parsed = this.parseMediaDataUrl(media?.mediaData, media?.mediaMimeType);
+      const messageMedia = new MessageMedia(
+        parsed.mimeType,
+        parsed.base64Data,
+        media?.mediaFileName || undefined,
+      );
+
+      const result = await client.sendMessage(numberId._serialized, messageMedia, {
+        caption: caption || undefined,
+      });
+      return result?.id?._serialized || null;
+    } catch (error) {
+      if (this.isRecoverableProtocolError(error)) {
+        await this.resetClient(
+          accountId,
+          "WhatsApp browser context reset. Open Show QR and reconnect the session.",
+        );
+        throw new Error("Session context was reset. Please open Show QR and reconnect.");
+      }
       if (typeof error?.message === "string" && error.message.includes("No LID for user")) {
         throw new Error(`Recipient ${normalized} is not reachable on WhatsApp.`);
       }

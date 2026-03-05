@@ -1,4 +1,4 @@
-import { formatDate } from "../utils/formatters";
+ï»¿import { formatDate } from "../utils/formatters";
 import { campaignTone } from "../utils/tones";
 
 function CampaignsPage({
@@ -19,6 +19,8 @@ function CampaignsPage({
   messagesLoading,
   messages,
 }) {
+  const selectedTemplate = templates.find((item) => item._id === campaignForm.templateId) || null;
+
   return (
     <section className="space-y-6">
       <header className="flex items-center justify-between">
@@ -72,15 +74,20 @@ function CampaignsPage({
               {templates.map((template) => (
                 <option key={template._id} value={template._id}>
                   {template.name}
+                  {template.mediaType ? " [media]" : ""}
                 </option>
               ))}
             </select>
+            {selectedTemplate?.mediaType && (
+              <p className="rounded-lg bg-cyan-50 px-3 py-2 text-xs text-cyan-700">
+                This template includes a {selectedTemplate.mediaType}.
+              </p>
+            )}
             <textarea
               className="input min-h-32"
               placeholder="Message body"
               value={campaignForm.messageBody}
               onChange={(e) => setCampaignForm((p) => ({ ...p, messageBody: e.target.value }))}
-              required
             />
           </div>
           <div className="space-y-3">
@@ -91,6 +98,46 @@ function CampaignsPage({
               onChange={(e) => setCampaignForm((p) => ({ ...p, recipientsText: e.target.value }))}
               required
             />
+            <div className="grid gap-3 md:grid-cols-2">
+              <input
+                className="input"
+                type="number"
+                min="1"
+                max="5000"
+                placeholder="Total messages to send (optional)"
+                value={campaignForm.maxMessages}
+                onChange={(e) => setCampaignForm((p) => ({ ...p, maxMessages: e.target.value }))}
+              />
+              <input
+                className="input"
+                type="number"
+                min="1"
+                max="5000"
+                placeholder="Messages per day (optional)"
+                value={campaignForm.dailyMessageLimit}
+                onChange={(e) => setCampaignForm((p) => ({ ...p, dailyMessageLimit: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <p className="mb-1 text-xs text-slate-500">Campaign From</p>
+                <input
+                  className="input"
+                  type="date"
+                  value={campaignForm.dateFrom}
+                  onChange={(e) => setCampaignForm((p) => ({ ...p, dateFrom: e.target.value }))}
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-xs text-slate-500">Campaign To</p>
+                <input
+                  className="input"
+                  type="date"
+                  value={campaignForm.dateTo}
+                  onChange={(e) => setCampaignForm((p) => ({ ...p, dateTo: e.target.value }))}
+                />
+              </div>
+            </div>
             <div className="rounded-xl bg-white/80 p-3 text-sm text-slate-700">
               Recipients: <span className="font-heading text-lg text-cyan-700">{recipientsTotal}</span>
             </div>
@@ -121,7 +168,7 @@ function CampaignsPage({
                     <div>
                       <p className="font-heading text-base font-semibold text-slate-900">{campaign.title}</p>
                       <p className="text-xs text-slate-500">
-                        {campaign.account?.name || "Unknown"} • {formatDate(campaign.createdAt)}
+                        {campaign.account?.name || "Unknown"} â€¢ {formatDate(campaign.createdAt)}
                       </p>
                     </div>
                     <span
@@ -142,6 +189,26 @@ function CampaignsPage({
                     <span className="rounded-full bg-cyan-100 px-2.5 py-1">Total: {campaign.totalRecipients}</span>
                     <span className="rounded-full bg-emerald-100 px-2.5 py-1">Sent: {campaign.sentCount}</span>
                     <span className="rounded-full bg-rose-100 px-2.5 py-1">Failed: {campaign.failedCount}</span>
+                    {campaign.maxMessages && (
+                      <span className="rounded-full bg-sky-100 px-2.5 py-1 text-sky-700">
+                        Target: {campaign.maxMessages}
+                      </span>
+                    )}
+                    {campaign.dailyMessageLimit && (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-700">
+                        Per day: {campaign.dailyMessageLimit}
+                      </span>
+                    )}
+                    {(campaign.dateFrom || campaign.dateTo) && (
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
+                        Window: {campaign.dateFrom || "--"} to {campaign.dateTo || "--"}
+                      </span>
+                    )}
+                    {campaign.mediaType && (
+                      <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-indigo-700">
+                        Media: {campaign.mediaType}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {(campaign.status === "queued" || campaign.status === "running") && (
@@ -181,6 +248,15 @@ function CampaignsPage({
           ) : (
             <p className="mt-1 text-sm text-slate-500">Select a campaign to inspect messages.</p>
           )}
+          {selectedCampaign?.mediaData && (
+            <div className="mt-3">
+              {selectedCampaign.mediaType === "video" ? (
+                <video src={selectedCampaign.mediaData} controls className="max-h-44 rounded-lg" />
+              ) : (
+                <img src={selectedCampaign.mediaData} alt={selectedCampaign.title} className="max-h-44 rounded-lg" />
+              )}
+            </div>
+          )}
           {messagesLoading ? (
             <p className="mt-4 rounded-xl bg-white/70 p-4 text-sm text-slate-600">Loading messages...</p>
           ) : (
@@ -204,8 +280,8 @@ function CampaignsPage({
                         {message.status}
                       </span>
                     </div>
-                    <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">{message.text}</p>
-                    <p className="mt-1 text-[11px] text-slate-500">Tries: {message.tryCount} • Sent: {formatDate(message.sentAt)}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-slate-600">{message.text || "(Media only)"}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">Tries: {message.tryCount} â€¢ Sent: {formatDate(message.sentAt)}</p>
                     {message.error && (
                       <p className="mt-2 rounded bg-rose-50 px-2 py-1 text-[11px] text-rose-700">{message.error}</p>
                     )}

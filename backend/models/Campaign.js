@@ -30,10 +30,60 @@ const campaignSchema = new mongoose.Schema(
     },
     messageBody: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
-      minlength: 1,
       maxlength: 4096,
+    },
+    maxMessages: {
+      type: Number,
+      default: null,
+      min: 1,
+      max: 5000,
+    },
+    dailyMessageLimit: {
+      type: Number,
+      default: null,
+      min: 1,
+      max: 5000,
+    },
+    dateFrom: {
+      type: String,
+      default: null,
+      match: [/^\d{4}-\d{2}-\d{2}$/, "dateFrom must be YYYY-MM-DD"],
+    },
+    dateTo: {
+      type: String,
+      default: null,
+      match: [/^\d{4}-\d{2}-\d{2}$/, "dateTo must be YYYY-MM-DD"],
+    },
+    sentToday: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    sentOn: {
+      type: String,
+      default: null,
+    },
+    mediaType: {
+      type: String,
+      enum: ["image", "video", null],
+      default: null,
+    },
+    mediaMimeType: {
+      type: String,
+      default: null,
+      maxlength: 120,
+    },
+    mediaData: {
+      type: String,
+      default: null,
+      maxlength: 12 * 1024 * 1024,
+    },
+    mediaFileName: {
+      type: String,
+      default: null,
+      maxlength: 180,
     },
     status: {
       type: String,

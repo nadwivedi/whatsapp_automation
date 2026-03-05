@@ -8,7 +8,7 @@ async function listCampaigns(req, res) {
   const campaigns = await Campaign.find({ owner: req.user._id })
     .sort({ createdAt: -1 })
     .populate("account", "name phoneNumber status dailyLimit sentToday")
-    .populate("template", "name body")
+    .populate("template", "name body mediaType mediaFileName")
     .limit(100);
   res.json({ campaigns });
 }
@@ -36,6 +36,20 @@ async function listCampaignMessages(req, res) {
 async function createCampaign(req, res) {
   const { title, accountId, templateId, recipientsText } = req.body || {};
   let { messageBody } = req.body || {};
+  let mediaData = null;
+  let mediaType = null;
+  let mediaMimeType = null;
+  let mediaFileName = null;
+  const maxMessages =
+    req.body?.maxMessages == null || req.body?.maxMessages === ""
+      ? null
+      : Number(req.body.maxMessages);
+  const dailyMessageLimit =
+    req.body?.dailyMessageLimit == null || req.body?.dailyMessageLimit === ""
+      ? null
+      : Number(req.body.dailyMessageLimit);
+  const dateFrom = req.body?.dateFrom ? String(req.body.dateFrom) : null;
+  const dateTo = req.body?.dateTo ? String(req.body.dateTo) : null;
 
   if (!accountId) {
     return res.status(400).json({ message: "accountId is required." });
@@ -49,7 +63,7 @@ async function createCampaign(req, res) {
     return res.status(400).json({ message: "Selected WhatsApp account is invalid." });
   }
 
-  if (templateId && !messageBody) {
+  if (templateId) {
     const template = await MessageTemplate.findOne({
       _id: templateId,
       owner: req.user._id,
@@ -57,11 +71,36 @@ async function createCampaign(req, res) {
     if (!template || !template.isActive) {
       return res.status(400).json({ message: "Selected template is invalid or inactive." });
     }
-    messageBody = template.body;
+    if (!messageBody) {
+      messageBody = template.body;
+    }
+    mediaData = template.mediaData || null;
+    mediaType = template.mediaType || null;
+    mediaMimeType = template.mediaMimeType || null;
+    mediaFileName = template.mediaFileName || null;
   }
 
-  if (!messageBody || typeof messageBody !== "string") {
-    return res.status(400).json({ message: "Message body is required." });
+  const normalizedBody = typeof messageBody === "string" ? messageBody.trim() : "";
+  if (!normalizedBody && !mediaData) {
+    return res.status(400).json({ message: "Campaign needs message text or media." });
+  }
+  if (maxMessages != null && (!Number.isFinite(maxMessages) || maxMessages < 1 || maxMessages > 5000)) {
+    return res.status(400).json({ message: "maxMessages must be between 1 and 5000." });
+  }
+  if (
+    dailyMessageLimit != null &&
+    (!Number.isFinite(dailyMessageLimit) || dailyMessageLimit < 1 || dailyMessageLimit > 5000)
+  ) {
+    return res.status(400).json({ message: "dailyMessageLimit must be between 1 and 5000." });
+  }
+  if (dateFrom && !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
+    return res.status(400).json({ message: "dateFrom must be in YYYY-MM-DD format." });
+  }
+  if (dateTo && !/^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+    return res.status(400).json({ message: "dateTo must be in YYYY-MM-DD format." });
+  }
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    return res.status(400).json({ message: "dateFrom cannot be later than dateTo." });
   }
 
   const campaign = await campaignQueue.enqueueCampaign({
@@ -69,13 +108,21 @@ async function createCampaign(req, res) {
     title,
     accountId,
     templateId: templateId || null,
-    messageBody,
+    messageBody: normalizedBody,
+    mediaData,
+    mediaType,
+    mediaMimeType,
+    mediaFileName,
+    maxMessages,
+    dailyMessageLimit,
+    dateFrom,
+    dateTo,
     recipientsText: recipientsText || "",
   });
 
   const hydrated = await Campaign.findById(campaign._id)
     .populate("account", "name phoneNumber status dailyLimit sentToday")
-    .populate("template", "name body");
+    .populate("template", "name body mediaType mediaFileName");
 
   return res.status(201).json({ campaign: hydrated });
 }

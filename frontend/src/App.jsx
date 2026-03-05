@@ -66,6 +66,7 @@ function App() {
           busy={app.busy}
           templates={app.templates}
           dashboardLoading={app.dashboardLoading}
+          setNotice={app.setNotice}
         />
       );
     }

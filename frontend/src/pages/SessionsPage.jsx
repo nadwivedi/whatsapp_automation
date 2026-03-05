@@ -1,4 +1,5 @@
-import { accountTone } from "../utils/tones";
+﻿import { accountTone } from "../utils/tones";
+import { formatDate } from "../utils/formatters";
 
 function SessionsPage({
   refreshing,
@@ -70,6 +71,9 @@ function SessionsPage({
               <div>
                 <p className="font-heading text-lg font-semibold text-slate-900">{account.name}</p>
                 <p className="text-sm text-slate-500">{account.phoneNumber || "Not linked yet"}</p>
+                <p className="text-xs text-slate-500">
+                  Last connected: {account.lastConnectedAt ? formatDate(account.lastConnectedAt) : "Never"}
+                </p>
               </div>
               <span
                 className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${
@@ -146,35 +150,48 @@ function SessionsPage({
       </div>
 
       {qrPreview && (
-        <section className="glass-panel rounded-2xl p-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="font-heading text-xl font-semibold text-slate-900">QR Preview</h3>
-              <p className="text-sm text-slate-600">
-                {qrPreview.accountName} � {qrPreview.status}
-              </p>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
+          onClick={() => setQrPreview(null)}
+        >
+          <div
+            className="glass-panel w-full max-w-md rounded-2xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="font-heading text-xl font-semibold text-slate-900">QR Preview</h3>
+                <p className="text-sm text-slate-600">
+                  {qrPreview.accountName} • {qrPreview.status}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                onClick={() => setQrPreview(null)}
+                aria-label="Close QR popup"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
             </div>
-            <div className="flex gap-2">
+            <div className="mt-4 flex flex-col items-center gap-4">
+              {qrPreview.qrCodeDataUrl ? (
+                <img
+                  src={qrPreview.qrCodeDataUrl}
+                  alt="WhatsApp QR"
+                  className="h-64 w-64 rounded-2xl border-4 border-white shadow-lg"
+                />
+              ) : (
+                <p className="empty w-full">QR not available yet.</p>
+              )}
               <button type="button" className="btn-dark" onClick={refreshQrPreview}>
                 Refresh QR
               </button>
-              <button type="button" className="btn-dark" onClick={() => setQrPreview(null)}>
-                Close
-              </button>
             </div>
           </div>
-          <div className="mt-4">
-            {qrPreview.qrCodeDataUrl ? (
-              <img
-                src={qrPreview.qrCodeDataUrl}
-                alt="WhatsApp QR"
-                className="h-56 w-56 rounded-2xl border-4 border-white shadow-lg"
-              />
-            ) : (
-              <p className="empty">QR not available yet.</p>
-            )}
-          </div>
-        </section>
+        </div>
       )}
     </section>
   );

@@ -35,6 +35,10 @@ const waAccountSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    lastConnectedAt: {
+      type: Date,
+      default: null,
+    },
     status: {
       type: String,
       enum: ACCOUNT_STATUSES,

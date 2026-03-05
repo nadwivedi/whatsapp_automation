@@ -152,11 +152,28 @@ async function getAccountQr(req, res) {
     return res.status(404).json({ message: "Account not found." });
   }
 
+  const shouldRestartForQr =
+    ["new", "disconnected", "auth_failure"].includes(account.status) ||
+    (!account.qrCodeDataUrl && account.status !== "authenticated");
+
+  if (shouldRestartForQr) {
+    try {
+      await whatsappSessionManager.startSession(account._id);
+    } catch (error) {
+      await WaAccount.findByIdAndUpdate(account._id, {
+        status: "auth_failure",
+        lastError: error.message,
+      });
+    }
+  }
+
+  const refreshed = await WaAccount.findById(account._id);
+
   return res.json({
-    accountId: account._id,
-    status: account.status,
-    qrCodeDataUrl: account.qrCodeDataUrl,
-    lastError: account.lastError,
+    accountId: refreshed._id,
+    status: refreshed.status,
+    qrCodeDataUrl: refreshed.qrCodeDataUrl,
+    lastError: refreshed.lastError,
   });
 }
 
