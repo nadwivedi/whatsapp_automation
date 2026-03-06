@@ -41,6 +41,23 @@ const DEFAULT_SETTINGS = {
   perMobileHourlyLimit: 2,
 };
 
+function formatBulkInsertError(error) {
+  const entries = Array.isArray(error?.details?.errors) ? error.details.errors : [];
+  if (!entries.length) return error?.message || "Bulk insert failed.";
+
+  const preview = entries.slice(0, 12).map((entry) => {
+    const row = Number.isInteger(entry?.index) ? entry.index + 1 : "?";
+    const fieldPrefix = entry?.field ? `${entry.field}: ` : "";
+    return `Row ${row}: ${fieldPrefix}${entry?.message || "Invalid data."}`;
+  });
+  const omitted = entries.length - preview.length;
+  if (omitted > 0) {
+    preview.push(`...and ${omitted} more errors.`);
+  }
+
+  return `Bulk insert validation failed.\n${preview.join("\n")}`;
+}
+
 export function useWhatsAppManager() {
   const [token, setToken] = useState("session");
   const [profile, setProfile] = useState(null);
@@ -699,8 +716,11 @@ export function useWhatsAppManager() {
       await refreshAll();
       return response;
     } catch (error) {
-      setNotice({ type: "error", text: error.message });
-      return null;
+      const detailedMessage = formatBulkInsertError(error);
+      setNotice({ type: "error", text: detailedMessage });
+      const wrappedError = new Error(detailedMessage);
+      wrappedError.details = error?.details;
+      throw wrappedError;
     } finally {
       setBusy("");
     }

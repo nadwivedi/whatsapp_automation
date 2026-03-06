@@ -14,6 +14,117 @@ function uniqueValues(values) {
   return [...keyed.values()].sort((a, b) => a.localeCompare(b));
 }
 
+function removeCodeFence(raw) {
+  const text = String(raw || "").trim().replace(/^\uFEFF/, "");
+  if (!text.startsWith("```")) return text;
+  return text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+}
+
+function normalizeParsedItems(parsed) {
+  if (Array.isArray(parsed)) return parsed;
+  if (parsed && typeof parsed === "object") {
+    if (Array.isArray(parsed.items)) return parsed.items;
+    return [parsed];
+  }
+  return null;
+}
+
+function parseBulkItems(rawJson) {
+  const cleaned = removeCodeFence(rawJson);
+  if (!cleaned) throw new Error("Please provide JSON data.");
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    const items = normalizeParsedItems(parsed);
+    if (!items) {
+      throw new Error("JSON must be an array, a single object, or an object containing an 'items' array.");
+    }
+    return items;
+  } catch (firstError) {
+    if (cleaned.startsWith("\"")) {
+      const fragmentCandidate = cleaned.endsWith("]") ? `[{${cleaned}` : `{${cleaned}}`;
+      try {
+        const parsedFragment = JSON.parse(fragmentCandidate);
+        const items = normalizeParsedItems(parsedFragment);
+        if (items) {
+          return items;
+        }
+      } catch (_ignored) {
+        // Fall through to the next parser strategy.
+      }
+    }
+
+    const lines = cleaned
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length > 1) {
+      try {
+        const parsedLines = lines.map((line) => JSON.parse(line));
+        const flattened = [];
+        for (const entry of parsedLines) {
+          if (Array.isArray(entry)) {
+            flattened.push(...entry);
+            continue;
+          }
+          if (entry && typeof entry === "object") {
+            flattened.push(entry);
+            continue;
+          }
+          throw new Error("Each JSON line must be an object or array.");
+        }
+        return flattened;
+      } catch (_ignored) {
+        // Fall through to the next parser strategy.
+      }
+    }
+
+    const stitchedObjects = cleaned.replace(/}\s*{/g, "},{");
+    if (stitchedObjects !== cleaned) {
+      try {
+        const parsedStitched = JSON.parse(`[${stitchedObjects}]`);
+        const flattened = [];
+        for (const entry of parsedStitched) {
+          if (Array.isArray(entry)) {
+            flattened.push(...entry);
+            continue;
+          }
+          if (entry && typeof entry === "object") {
+            flattened.push(entry);
+            continue;
+          }
+          throw new Error("Each entry must be an object.");
+        }
+        return flattened;
+      } catch (_ignored) {
+        // Fall through to bracket-wrap parsing.
+      }
+    }
+
+    try {
+      const parsedWrapped = JSON.parse(`[${cleaned}]`);
+      const flattened = [];
+      for (const entry of parsedWrapped) {
+        if (Array.isArray(entry)) {
+          flattened.push(...entry);
+          continue;
+        }
+        if (entry && typeof entry === "object") {
+          flattened.push(entry);
+          continue;
+        }
+        throw new Error("Each entry must be an object.");
+      }
+      return flattened;
+    } catch (_ignored) {
+      throw new Error(
+        `Invalid JSON format. Use an array, object, or JSON lines. Parser error: ${firstError.message}`,
+      );
+    }
+  }
+}
+
 function BusinessesPage({
   refreshing,
   refreshAll,
@@ -126,11 +237,7 @@ function BusinessesPage({
   }
 
   async function submitBulkFromText(rawJson) {
-    const parsed = JSON.parse(rawJson);
-    const items = Array.isArray(parsed) ? parsed : parsed?.items;
-    if (!Array.isArray(items)) {
-      throw new Error("JSON must be an array or an object containing an 'items' array.");
-    }
+    const items = parseBulkItems(rawJson);
 
     const payload = {
       items,
@@ -441,7 +548,7 @@ function BusinessesPage({
                 {busy === "bulk-business-json" ? "Inserting..." : "Bulk Insert from Text"}
               </button>
               {bulkStatus && (
-                <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 sm:text-sm">
+                <p className="whitespace-pre-line rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 sm:text-sm">
                   {bulkStatus}
                 </p>
               )}

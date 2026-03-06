@@ -71,23 +71,38 @@ function validateBusinessPayload(payload) {
   const errors = [];
 
   if (!payload.businessName || payload.businessName.length < 2) {
-    errors.push("businessName is required and must be at least 2 characters.");
+    errors.push({
+      field: "businessName",
+      message: "businessName is required and must be at least 2 characters.",
+    });
   }
 
   if (!isValidMobile(payload.mobile)) {
-    errors.push("mobile must be a valid number with 8 to 15 digits.");
+    errors.push({
+      field: "mobile",
+      message: "mobile must be a valid number with 8 to 15 digits.",
+    });
   }
 
   if (!isValidEmail(payload.email)) {
-    errors.push("email must be a valid email address.");
+    errors.push({
+      field: "email",
+      message: "email must be a valid email address.",
+    });
   }
 
   if (payload.pincode && !/^[A-Za-z0-9 -]{3,12}$/.test(payload.pincode)) {
-    errors.push("pincode format is invalid.");
+    errors.push({
+      field: "pincode",
+      message: "pincode format is invalid.",
+    });
   }
 
   if (!payload.categoryInput) {
-    errors.push("businessCategory is required.");
+    errors.push({
+      field: "businessCategory",
+      message: "businessCategory is required.",
+    });
   }
 
   return errors;
@@ -141,7 +156,7 @@ async function createBusiness(req, res) {
   const payload = normalizeBusinessPayload(req.body || {});
   const errors = validateBusinessPayload(payload);
   if (errors.length) {
-    return res.status(400).json({ message: errors[0] });
+    return res.status(400).json({ message: errors[0].message, errors });
   }
 
   const lookup = await buildCategoryLookup(req.user._id);
@@ -218,7 +233,13 @@ async function bulkInsertBusinesses(req, res) {
       categoryInput: payload.categoryInput || defaultCategoryInput,
     });
     if (validationErrors.length) {
-      errors.push({ index, message: validationErrors.join(" ") });
+      validationErrors.forEach((fieldError) => {
+        errors.push({
+          index,
+          field: fieldError.field,
+          message: fieldError.message,
+        });
+      });
       return;
     }
 
@@ -228,6 +249,7 @@ async function bulkInsertBusinesses(req, res) {
     if (!category) {
       errors.push({
         index,
+        field: "businessCategory",
         message: `Category not found for item. Provided value: "${payload.categoryInput || defaultCategoryInput}".`,
       });
       return;

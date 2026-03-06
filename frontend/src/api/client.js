@@ -18,7 +18,11 @@ export async function apiRequest(path, { options = {}, onUnauthorized } = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && onUnauthorized) onUnauthorized();
-    throw new Error(data.message || `Request failed (${res.status})`);
+    const error = new Error(data.message || `Request failed (${res.status})`);
+    if (data && typeof data === "object") {
+      error.details = data;
+    }
+    throw error;
   }
   return data;
 }
