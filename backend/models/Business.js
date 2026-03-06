@@ -32,19 +32,26 @@ const businessSchema = new mongoose.Schema(
       type: String,
       default: "",
       trim: true,
+      lowercase: true,
       maxlength: 120,
     },
     district: {
       type: String,
       default: "",
       trim: true,
+      lowercase: true,
       maxlength: 120,
     },
     pincode: {
-      type: String,
-      default: "",
-      trim: true,
-      maxlength: 20,
+      type: Number,
+      default: null,
+      validate: {
+        validator(value) {
+          if (value == null) return true;
+          return Number.isInteger(value) && value >= 100000 && value <= 999999;
+        },
+        message: "pincode must be a 6-digit number.",
+      },
     },
     address: {
       type: String,

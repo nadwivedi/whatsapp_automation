@@ -18,6 +18,19 @@ function normalizeEmail(raw) {
   return value ? value.toLowerCase() : null;
 }
 
+function normalizePincode(raw) {
+  if (raw == null) return null;
+  if (typeof raw === "number") {
+    if (!Number.isFinite(raw)) return Number.NaN;
+    return Math.trunc(raw);
+  }
+
+  const text = normalizeText(raw);
+  if (!text) return null;
+  if (!/^\d+$/.test(text)) return Number.NaN;
+  return Number(text);
+}
+
 function isValidMobile(mobile) {
   return /^\+?\d{8,15}$/.test(mobile);
 }
@@ -43,9 +56,9 @@ function normalizeBusinessPayload(input = {}) {
   const businessName = normalizeText(input.businessName || input.name);
   const mobile = normalizeMobile(input.mobile || input.phoneNumber || input.phone);
   const email = normalizeEmail(input.email);
-  const state = normalizeText(input.state);
-  const district = normalizeText(input.district);
-  const pincode = normalizeText(input.pincode || input.pinCode || input.zip || input.postalCode);
+  const state = normalizeText(input.state).toLowerCase();
+  const district = normalizeText(input.district).toLowerCase();
+  const pincode = normalizePincode(input.pincode || input.pinCode || input.zip || input.postalCode);
   const address = normalizeText(input.address || input.fullAddress);
   const categoryInput = pickCategoryInput(
     input.businessCategory ||
@@ -91,10 +104,13 @@ function validateBusinessPayload(payload) {
     });
   }
 
-  if (payload.pincode && !/^[A-Za-z0-9 -]{3,12}$/.test(payload.pincode)) {
+  if (
+    payload.pincode != null &&
+    (!Number.isInteger(payload.pincode) || payload.pincode < 100000 || payload.pincode > 999999)
+  ) {
     errors.push({
       field: "pincode",
-      message: "pincode format is invalid.",
+      message: "pincode must be a 6-digit number.",
     });
   }
 

@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { formatDate } from "../utils/formatters";
 
 const MAX_JSON_UPLOAD_BYTES = 10 * 1024 * 1024;
 
@@ -302,7 +301,7 @@ function BusinessesPage({
         </div>
         <div className="mt-3 grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
           <input
-            className="input xl:col-span-2"
+            className="input input-search-strong xl:col-span-2"
             placeholder="Search by business name or category"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -354,43 +353,61 @@ function BusinessesPage({
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {filteredBusinesses.map((item) => (
-          <article key={item._id} className="glass-panel rounded-2xl p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-heading text-base font-semibold text-slate-900">{item.businessName}</h3>
-                <p className="mt-1 text-xs text-slate-600">{item.mobile}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {item.businessCategory?.name || "Uncategorized"} - {formatDate(item.updatedAt)}
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn-red"
-                onClick={() => deleteBusiness(item)}
-                disabled={busy === `delete-business-${item._id}`}
-              >
-                {busy === `delete-business-${item._id}` ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-            <div className="mt-3 space-y-1 text-sm text-slate-600">
-              <p>Email: {item.email || "--"}</p>
-              <p>
-                Location: {[item.district, item.state].filter(Boolean).join(", ") || "--"}
-              </p>
-              <p>Pincode: {item.pincode || "--"}</p>
-              <p>Address: {item.address || "--"}</p>
-            </div>
-          </article>
-        ))}
+      <div className="glass-panel overflow-hidden rounded-2xl p-0">
+        <div className="overflow-x-auto">
+          <table className="min-w-[1040px] w-full border-collapse text-xs sm:text-sm">
+            <thead className="bg-slate-100/80 text-left text-slate-700">
+              <tr>
+                <th className="px-3 py-2 font-semibold">Business Name</th>
+                <th className="px-3 py-2 font-semibold">Mobile</th>
+                <th className="px-3 py-2 font-semibold">State</th>
+                <th className="px-3 py-2 font-semibold">District</th>
+                <th className="px-3 py-2 font-semibold">Pincode</th>
+                <th className="px-3 py-2 font-semibold">Address</th>
+                <th className="px-3 py-2 font-semibold">Email</th>
+                <th className="px-3 py-2 font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredBusinesses.map((item) => (
+                <tr key={item._id} className="border-t border-slate-200/80 align-top text-slate-700">
+                  <td className="px-3 py-2 font-medium text-slate-900">{item.businessName || "--"}</td>
+                  <td className="px-3 py-2">{item.mobile || "--"}</td>
+                  <td className="px-3 py-2">{item.state || "--"}</td>
+                  <td className="px-3 py-2">{item.district || "--"}</td>
+                  <td className="px-3 py-2">{item.pincode || "--"}</td>
+                  <td className="max-w-[20rem] px-3 py-2 break-words">{item.address || "--"}</td>
+                  <td className="px-3 py-2">{item.email || "--"}</td>
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      className="btn-red"
+                      onClick={() => deleteBusiness(item)}
+                      disabled={busy === `delete-business-${item._id}`}
+                    >
+                      {busy === `delete-business-${item._id}` ? "Deleting..." : "Delete"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
 
-        {!filteredBusinesses.length && !dashboardLoading && businesses.length > 0 && (
-          <p className="empty col-span-2">No businesses match the current search/filters.</p>
-        )}
-        {!businesses.length && !dashboardLoading && (
-          <p className="empty col-span-2">No businesses saved yet.</p>
-        )}
+              {!filteredBusinesses.length && !dashboardLoading && businesses.length > 0 && (
+                <tr>
+                  <td className="px-3 py-6 text-center text-slate-500" colSpan={8}>
+                    No businesses match the current search/filters.
+                  </td>
+                </tr>
+              )}
+              {!businesses.length && !dashboardLoading && (
+                <tr>
+                  <td className="px-3 py-6 text-center text-slate-500" colSpan={8}>
+                    No businesses saved yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showAddPopup && (
