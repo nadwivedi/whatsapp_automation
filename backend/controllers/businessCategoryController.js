@@ -11,8 +11,7 @@ function normalizeDescription(raw) {
 
 async function listBusinessCategories(req, res) {
   const categories = await BusinessCategory.find({
-    owner: req.user._id,
-    isActive: true,
+    userId: req.user._id,
   }).sort({ name: 1 });
   return res.json({ categories });
 }
@@ -27,7 +26,7 @@ async function createBusinessCategory(req, res) {
 
   try {
     const category = await BusinessCategory.create({
-      owner: req.user._id,
+      userId: req.user._id,
       name,
       description,
     });
@@ -43,8 +42,7 @@ async function createBusinessCategory(req, res) {
 async function updateBusinessCategory(req, res) {
   const category = await BusinessCategory.findOne({
     _id: req.params.categoryId,
-    owner: req.user._id,
-    isActive: true,
+    userId: req.user._id,
   });
   if (!category) {
     return res.status(404).json({ message: "Business category not found." });
@@ -82,8 +80,7 @@ async function updateBusinessCategory(req, res) {
 async function deleteBusinessCategory(req, res) {
   const category = await BusinessCategory.findOne({
     _id: req.params.categoryId,
-    owner: req.user._id,
-    isActive: true,
+    userId: req.user._id,
   });
   if (!category) {
     return res.status(404).json({ message: "Business category not found." });
@@ -92,7 +89,6 @@ async function deleteBusinessCategory(req, res) {
   const linkedBusinesses = await Business.countDocuments({
     userId: req.user._id,
     businessCategory: category._id,
-    isActive: true,
   });
 
   if (linkedBusinesses > 0) {
@@ -101,8 +97,7 @@ async function deleteBusinessCategory(req, res) {
     });
   }
 
-  category.isActive = false;
-  await category.save();
+  await category.deleteOne();
   return res.json({ category });
 }
 

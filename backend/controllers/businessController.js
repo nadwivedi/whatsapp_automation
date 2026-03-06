@@ -93,10 +93,9 @@ function validateBusinessPayload(payload) {
   return errors;
 }
 
-async function buildCategoryLookup(ownerId) {
+async function buildCategoryLookup(userId) {
   const categories = await BusinessCategory.find({
-    owner: ownerId,
-    isActive: true,
+    userId,
   }).select("_id name nameKey");
 
   const byId = new Map();
@@ -130,7 +129,6 @@ function resolveCategoryFromLookup(categoryInput, lookup) {
 async function listBusinesses(req, res) {
   const businesses = await Business.find({
     userId: req.user._id,
-    isActive: true,
   })
     .populate("businessCategory", "name")
     .sort({ createdAt: -1 })
@@ -169,11 +167,10 @@ async function createBusiness(req, res) {
 }
 
 async function deleteBusiness(req, res) {
-  const business = await Business.findOneAndUpdate(
-    { _id: req.params.businessId, userId: req.user._id, isActive: true },
-    { isActive: false },
-    { returnDocument: "after" },
-  );
+  const business = await Business.findOneAndDelete({
+    _id: req.params.businessId,
+    userId: req.user._id,
+  });
 
   if (!business) {
     return res.status(404).json({ message: "Business not found." });

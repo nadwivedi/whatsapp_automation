@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const businessCategorySchema = new mongoose.Schema(
   {
-    owner: {
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
@@ -27,11 +27,6 @@ const businessCategorySchema = new mongoose.Schema(
       trim: true,
       maxlength: 280,
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-      index: true,
-    },
   },
   { timestamps: true },
 );
@@ -47,8 +42,8 @@ businessCategorySchema.pre("validate", function normalizeCategoryName() {
 });
 
 businessCategorySchema.index(
-  { owner: 1, nameKey: 1 },
-  { unique: true, partialFilterExpression: { isActive: true } },
+  { userId: 1, nameKey: 1 },
+  { unique: true },
 );
 
 module.exports = {
