@@ -333,14 +333,11 @@ function MessagesPage({
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto bg-[#e5ded8] p-4 relative">
-              <div className="absolute inset-0 opacity-10 pointer-events-none"
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 20.5V29M20 11v9' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E")`,
-                  backgroundSize: '40px 40px'
-                }}
-              />
-              
+            <div className="flex-1 overflow-y-auto p-4 relative" style={{
+              backgroundColor: '#e5ded8',
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 30m-25 0a25 25 0 1 0 50 0a25 25 0 1 0-50 0' fill='none' stroke='%23c8ccc4' stroke-width='1'/%3E%3C/svg%3E")`,
+              backgroundSize: '30px 30px'
+            }}>
               {!activeConversationNumber ? (
                 <div className="h-full flex flex-col items-center justify-center text-center px-8">
                   <div className="w-24 h-24 mb-4 rounded-full bg-[#e8e8e8] flex items-center justify-center">
