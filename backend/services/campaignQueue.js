@@ -20,10 +20,6 @@ function randomBetween(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function shuffleArray(array) {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -33,11 +29,77 @@ function shuffleArray(array) {
   return shuffled;
 }
 
+/**
+ * Message Spinning: replaces {option1|option2|option3} with a random pick.
+ * Supports multiple spin groups in the same message.
+ * Example: "{Hi|Hello|Hey} {friend|buddy}, how are you?" → "Hello buddy, how are you?"
+ */
+function spinMessage(text) {
+  if (!text) return text;
+  return text.replace(/\{([^}]+)\}/g, (_match, group) => {
+    const options = group.split("|").map((s) => s.trim()).filter(Boolean);
+    if (!options.length) return "";
+    return options[Math.floor(Math.random() * options.length)];
+  });
+}
+
+/**
+ * Calculate warm-up daily limit for an account based on its age.
+ * Linear ramp from warmUpStartLimit to the full dailyLimit over warmUpDays.
+ */
+function getWarmUpDailyLimit(account, fullDailyLimit, antiBot) {
+  if (!antiBot.antiBotEnabled || !antiBot.warmUpEnabled) {
+    return fullDailyLimit;
+  }
+
+  const firstSentAt = account.firstCampaignSentAt
+    ? new Date(account.firstCampaignSentAt).getTime()
+    : 0;
+
+  // Never sent before — use start limit
+  if (!firstSentAt) {
+    return antiBot.warmUpStartLimit || DEFAULT_ANTI_BOT.warmUpStartLimit;
+  }
+
+  const daysSinceFirst = (Date.now() - firstSentAt) / DAILY_WINDOW_MS;
+  const warmUpDays = antiBot.warmUpDays || DEFAULT_ANTI_BOT.warmUpDays;
+  const startLimit = antiBot.warmUpStartLimit || DEFAULT_ANTI_BOT.warmUpStartLimit;
+
+  if (daysSinceFirst >= warmUpDays) {
+    return fullDailyLimit; // Warm-up complete
+  }
+
+  // Linear interpolation: startLimit → fullDailyLimit over warmUpDays
+  const progress = daysSinceFirst / warmUpDays;
+  const warmUpLimit = Math.round(startLimit + (fullDailyLimit - startLimit) * progress);
+  return Math.max(startLimit, Math.min(fullDailyLimit, warmUpLimit));
+}
+
+/**
+ * Check if current time is within business hours.
+ */
+function isWithinBusinessHours(antiBot) {
+  if (!antiBot.antiBotEnabled || !antiBot.businessHoursEnabled) {
+    return true; // feature off = always OK
+  }
+
+  const now = new Date();
+  const currentHour = now.getHours();
+  const start = antiBot.businessHoursStart ?? DEFAULT_ANTI_BOT.businessHoursStart;
+  const end = antiBot.businessHoursEnd ?? DEFAULT_ANTI_BOT.businessHoursEnd;
+
+  if (start <= end) {
+    // Normal range: e.g. 9-21
+    return currentHour >= start && currentHour < end;
+  }
+  // Wrapping range: e.g. 22-6 (night shift)
+  return currentHour >= start || currentHour < end;
+}
+
 class CampaignQueue {
   constructor() {
     this.timer = null;
     this.isTickRunning = false;
-    // Tracks per-account: { lastSentAt, nextAllowedAt }
     this.accountCooldowns = new Map();
   }
 
@@ -47,9 +109,7 @@ class CampaignQueue {
     }
 
     this.timer = setInterval(() => {
-      this.tick().catch(() => {
-        // Avoid process crash, errors are persisted in DB.
-      });
+      this.tick().catch(() => { });
     }, QUEUE_INTERVAL_MS);
   }
 
@@ -60,12 +120,6 @@ class CampaignQueue {
     }
   }
 
-  /**
-   * Per-account throttle: each account has its own cooldown.
-   * When anti-bot is ON, a random delay (minDelayMs–maxDelayMs) is assigned
-   * per-account after each send. Other accounts are NOT affected.
-   * When anti-bot is OFF, the fixed MIN_GAP_PER_ACCOUNT_MS is used.
-   */
   isAccountThrottled(accountId) {
     const key = String(accountId);
     const cooldown = this.accountCooldowns.get(key);
@@ -75,11 +129,6 @@ class CampaignQueue {
     return Date.now() < cooldown.nextAllowedAt;
   }
 
-  /**
-   * After sending a message, set the per-account cooldown.
-   * - Anti-bot ON: random delay between minDelayMs and maxDelayMs
-   * - Anti-bot OFF: fixed MIN_GAP_PER_ACCOUNT_MS
-   */
   markAccountSent(accountId, antiBot) {
     const now = Date.now();
     let cooldownMs;
@@ -89,7 +138,6 @@ class CampaignQueue {
       const maxDelay = antiBot.maxDelayMs || DEFAULT_ANTI_BOT.maxDelayMs;
       cooldownMs = randomBetween(minDelay, maxDelay);
 
-      // Occasional long pause (per-account)
       if (
         antiBot.longPauseEnabled &&
         Math.random() < (antiBot.longPauseChance || DEFAULT_ANTI_BOT.longPauseChance)
@@ -141,7 +189,7 @@ class CampaignQueue {
       return {
         perMobileDailyLimit: settings.perMobileDailyLimit || DEFAULT_PER_MOBILE_DAILY_LIMIT,
         perMobileHourlyLimit: settings.perMobileHourlyLimit || DEFAULT_PER_MOBILE_HOURLY_LIMIT,
-        // Anti-Bot fields
+        // Phase 1
         antiBotEnabled: settings.antiBotEnabled ?? DEFAULT_ANTI_BOT.antiBotEnabled,
         minDelayMs: settings.minDelayMs ?? DEFAULT_ANTI_BOT.minDelayMs,
         maxDelayMs: settings.maxDelayMs ?? DEFAULT_ANTI_BOT.maxDelayMs,
@@ -152,6 +200,15 @@ class CampaignQueue {
         longPauseChance: settings.longPauseChance ?? DEFAULT_ANTI_BOT.longPauseChance,
         longPauseMinMs: settings.longPauseMinMs ?? DEFAULT_ANTI_BOT.longPauseMinMs,
         longPauseMaxMs: settings.longPauseMaxMs ?? DEFAULT_ANTI_BOT.longPauseMaxMs,
+        // Phase 2
+        messageSpinning: settings.messageSpinning ?? DEFAULT_ANTI_BOT.messageSpinning,
+        businessHoursEnabled: settings.businessHoursEnabled ?? DEFAULT_ANTI_BOT.businessHoursEnabled,
+        businessHoursStart: settings.businessHoursStart ?? DEFAULT_ANTI_BOT.businessHoursStart,
+        businessHoursEnd: settings.businessHoursEnd ?? DEFAULT_ANTI_BOT.businessHoursEnd,
+        warmUpEnabled: settings.warmUpEnabled ?? DEFAULT_ANTI_BOT.warmUpEnabled,
+        warmUpDays: settings.warmUpDays ?? DEFAULT_ANTI_BOT.warmUpDays,
+        warmUpStartLimit: settings.warmUpStartLimit ?? DEFAULT_ANTI_BOT.warmUpStartLimit,
+        readReceiptsBeforeSend: settings.readReceiptsBeforeSend ?? DEFAULT_ANTI_BOT.readReceiptsBeforeSend,
       };
     } catch (_error) {
       return {
@@ -329,9 +386,19 @@ class CampaignQueue {
         ]);
         return;
       }
+
       this.resetCampaignDailyWindowIfNeeded(campaign);
       const ownerSettings = await this.getOwnerSettings(campaign.owner);
       const antiBot = ownerSettings;
+
+      // ── Business Hours check ──
+      if (!isWithinBusinessHours(antiBot)) {
+        const start = antiBot.businessHoursStart ?? 9;
+        const end = antiBot.businessHoursEnd ?? 21;
+        campaign.lastError = `Outside business hours (${start}:00–${end}:00). Will resume during business hours.`;
+        await campaign.save();
+        return;
+      }
 
       let messages = await CampaignMessage.find({
         owner: campaign.owner,
@@ -390,15 +457,23 @@ class CampaignQueue {
 
         WaAccount.resetDailyWindowIfNeeded(account);
         WaAccount.resetHourlyWindowIfNeeded(account);
+
         const accountDailyLimit = Number(account.dailyLimit);
-        const effectiveDailyCap =
+        const rawDailyCap =
           Number.isFinite(accountDailyLimit) && accountDailyLimit > 0
             ? Math.floor(accountDailyLimit)
             : ownerSettings.perMobileDailyLimit;
+
+        // ── Warm-Up: reduce daily cap for new accounts ──
+        const effectiveDailyCap = getWarmUpDailyLimit(account, rawDailyCap, antiBot);
         const effectiveHourlyCap = ownerSettings.perMobileHourlyLimit;
+
         if (account.sentToday >= effectiveDailyCap) {
           await account.save();
-          lastBlockReason = `Daily safeguard reached (${effectiveDailyCap}/24h) for one or more selected sessions.`;
+          const isWarmingUp = antiBot.antiBotEnabled && antiBot.warmUpEnabled && effectiveDailyCap < rawDailyCap;
+          lastBlockReason = isWarmingUp
+            ? `Warm-up limit reached (${effectiveDailyCap}/${rawDailyCap} daily) for ${account.phoneNumber || account.name || "account"}. Limit increases daily.`
+            : `Daily safeguard reached (${effectiveDailyCap}/24h) for one or more selected sessions.`;
           continue;
         }
         if (account.sentThisHour >= effectiveHourlyCap) {
@@ -411,8 +486,6 @@ class CampaignQueue {
           continue;
         }
 
-        // Per-account throttle: only THIS account is checked for cooldown.
-        // Other accounts can send freely even if this one is cooling down.
         if (this.isAccountThrottled(account._id)) {
           const cooldown = this.accountCooldowns.get(String(account._id));
           const remainingSec = cooldown
@@ -436,7 +509,19 @@ class CampaignQueue {
       }
 
       try {
-        // ── Anti-Bot: Typing simulation (per-account, before send) ──
+        // ── Anti-Bot: Read receipts (mark chat as read before sending) ──
+        if (antiBot.antiBotEnabled && antiBot.readReceiptsBeforeSend) {
+          try {
+            await whatsappSessionManager.markChatRead(
+              selectedAccount._id,
+              selectedMessage.recipient,
+            );
+          } catch (_readError) {
+            // Non-fatal
+          }
+        }
+
+        // ── Anti-Bot: Typing simulation ──
         if (antiBot.antiBotEnabled && antiBot.typingSimulation) {
           try {
             await whatsappSessionManager.simulateTyping(
@@ -445,8 +530,14 @@ class CampaignQueue {
               antiBot.typingDurationMs || DEFAULT_ANTI_BOT.typingDurationMs,
             );
           } catch (_typingError) {
-            // Typing simulation failure should not block message delivery.
+            // Non-fatal
           }
+        }
+
+        // ── Anti-Bot: Message spinning ──
+        let messageText = selectedMessage.text;
+        if (antiBot.antiBotEnabled && antiBot.messageSpinning) {
+          messageText = spinMessage(messageText);
         }
 
         const delivery = campaign.mediaData
@@ -458,16 +549,17 @@ class CampaignQueue {
               mediaMimeType: campaign.mediaMimeType,
               mediaFileName: campaign.mediaFileName,
             },
-            selectedMessage.text,
+            messageText,
           )
           : await whatsappSessionManager.sendTextMessageDetailed(
             selectedAccount._id,
             selectedMessage.recipient,
-            selectedMessage.text,
+            messageText,
           );
 
         selectedMessage.status = "sent";
         selectedMessage.sentAt = new Date();
+        selectedMessage.text = messageText; // Store the spun version
         selectedMessage.providerMessageId = delivery?.providerMessageId || null;
         selectedMessage.providerChatId = delivery?.providerChatId || null;
         selectedMessage.senderMobileNumber = selectedAccount.phoneNumber || null;
@@ -491,8 +583,11 @@ class CampaignQueue {
         selectedAccount.sentThisHour += 1;
         selectedAccount.hourWindowStart = new Date();
 
-        // Per-account cooldown: set random delay for THIS account only.
-        // Other accounts remain unaffected and can send immediately.
+        // ── Warm-Up: track first campaign send time ──
+        if (!selectedAccount.firstCampaignSentAt) {
+          selectedAccount.firstCampaignSentAt = new Date();
+        }
+
         this.markAccountSent(selectedAccount._id, antiBot);
 
         await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save()]);

@@ -83,6 +83,10 @@ const waAccountSchema = new mongoose.Schema(
       default: null,
       maxlength: 500,
     },
+    firstCampaignSentAt: {
+      type: Date,
+      default: null,
+    },
     isActive: {
       type: Boolean,
       default: true,

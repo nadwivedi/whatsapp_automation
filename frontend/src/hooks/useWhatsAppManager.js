@@ -55,6 +55,15 @@ const DEFAULT_SETTINGS = {
   longPauseChance: 0.1,
   longPauseMinMs: 30000,
   longPauseMaxMs: 120000,
+  // Phase 2
+  messageSpinning: true,
+  businessHoursEnabled: false,
+  businessHoursStart: 9,
+  businessHoursEnd: 21,
+  warmUpEnabled: false,
+  warmUpDays: 14,
+  warmUpStartLimit: 3,
+  readReceiptsBeforeSend: true,
 };
 
 function formatBulkInsertError(error) {

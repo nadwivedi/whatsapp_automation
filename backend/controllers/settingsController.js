@@ -7,7 +7,7 @@ function serializeSettings(settings) {
     owner: settings.owner,
     perMobileDailyLimit: settings.perMobileDailyLimit,
     perMobileHourlyLimit: settings.perMobileHourlyLimit,
-    // Anti-Bot Detection
+    // Anti-Bot Phase 1
     antiBotEnabled: settings.antiBotEnabled ?? DEFAULT_ANTI_BOT.antiBotEnabled,
     minDelayMs: settings.minDelayMs ?? DEFAULT_ANTI_BOT.minDelayMs,
     maxDelayMs: settings.maxDelayMs ?? DEFAULT_ANTI_BOT.maxDelayMs,
@@ -18,6 +18,15 @@ function serializeSettings(settings) {
     longPauseChance: settings.longPauseChance ?? DEFAULT_ANTI_BOT.longPauseChance,
     longPauseMinMs: settings.longPauseMinMs ?? DEFAULT_ANTI_BOT.longPauseMinMs,
     longPauseMaxMs: settings.longPauseMaxMs ?? DEFAULT_ANTI_BOT.longPauseMaxMs,
+    // Anti-Bot Phase 2
+    messageSpinning: settings.messageSpinning ?? DEFAULT_ANTI_BOT.messageSpinning,
+    businessHoursEnabled: settings.businessHoursEnabled ?? DEFAULT_ANTI_BOT.businessHoursEnabled,
+    businessHoursStart: settings.businessHoursStart ?? DEFAULT_ANTI_BOT.businessHoursStart,
+    businessHoursEnd: settings.businessHoursEnd ?? DEFAULT_ANTI_BOT.businessHoursEnd,
+    warmUpEnabled: settings.warmUpEnabled ?? DEFAULT_ANTI_BOT.warmUpEnabled,
+    warmUpDays: settings.warmUpDays ?? DEFAULT_ANTI_BOT.warmUpDays,
+    warmUpStartLimit: settings.warmUpStartLimit ?? DEFAULT_ANTI_BOT.warmUpStartLimit,
+    readReceiptsBeforeSend: settings.readReceiptsBeforeSend ?? DEFAULT_ANTI_BOT.readReceiptsBeforeSend,
     createdAt: settings.createdAt,
     updatedAt: settings.updatedAt,
   };
@@ -127,23 +136,37 @@ function validateNumberField(body, field, min, max) {
 
 async function updateSettings(req, res) {
   const body = req.body || {};
-  const hasDailyLimit = Object.prototype.hasOwnProperty.call(body, "perMobileDailyLimit");
-  const hasHourlyLimit = Object.prototype.hasOwnProperty.call(body, "perMobileHourlyLimit");
-  const hasAntiBot = Object.prototype.hasOwnProperty.call(body, "antiBotEnabled");
 
-  const hasAnyAntiBotField =
-    hasAntiBot ||
-    Object.prototype.hasOwnProperty.call(body, "minDelayMs") ||
-    Object.prototype.hasOwnProperty.call(body, "maxDelayMs") ||
-    Object.prototype.hasOwnProperty.call(body, "typingSimulation") ||
-    Object.prototype.hasOwnProperty.call(body, "typingDurationMs") ||
-    Object.prototype.hasOwnProperty.call(body, "shuffleRecipients") ||
-    Object.prototype.hasOwnProperty.call(body, "longPauseEnabled") ||
-    Object.prototype.hasOwnProperty.call(body, "longPauseChance") ||
-    Object.prototype.hasOwnProperty.call(body, "longPauseMinMs") ||
-    Object.prototype.hasOwnProperty.call(body, "longPauseMaxMs");
+  const numericFields = [
+    "perMobileDailyLimit",
+    "perMobileHourlyLimit",
+    "minDelayMs",
+    "maxDelayMs",
+    "typingDurationMs",
+    "longPauseChance",
+    "longPauseMinMs",
+    "longPauseMaxMs",
+    "businessHoursStart",
+    "businessHoursEnd",
+    "warmUpDays",
+    "warmUpStartLimit",
+  ];
+  const booleanFields = [
+    "antiBotEnabled",
+    "typingSimulation",
+    "shuffleRecipients",
+    "longPauseEnabled",
+    "messageSpinning",
+    "businessHoursEnabled",
+    "warmUpEnabled",
+    "readReceiptsBeforeSend",
+  ];
 
-  if (!hasDailyLimit && !hasHourlyLimit && !hasAnyAntiBotField) {
+  const hasAnyField = [...numericFields, ...booleanFields].some((f) =>
+    Object.prototype.hasOwnProperty.call(body, f),
+  );
+
+  if (!hasAnyField) {
     return res.status(400).json({
       message: "At least one setting field is required.",
     });
@@ -151,62 +174,46 @@ async function updateSettings(req, res) {
 
   const settings = await UserSetting.getOrCreate(req.user._id);
 
-  // ── Message Limits ──
-  if (hasDailyLimit) {
-    const perMobileDailyLimit = Number(body.perMobileDailyLimit);
-    if (!Number.isFinite(perMobileDailyLimit) || perMobileDailyLimit < 1 || perMobileDailyLimit > 500) {
-      return res.status(400).json({ message: "perMobileDailyLimit must be between 1 and 500." });
-    }
-    settings.perMobileDailyLimit = Math.floor(perMobileDailyLimit);
-  }
+  // ── Numeric validations ──
+  const numericRanges = {
+    perMobileDailyLimit: [1, 500],
+    perMobileHourlyLimit: [1, 100],
+    minDelayMs: [2000, 60000],
+    maxDelayMs: [3000, 120000],
+    typingDurationMs: [1000, 10000],
+    longPauseChance: [0, 1],
+    longPauseMinMs: [5000, 300000],
+    longPauseMaxMs: [10000, 600000],
+    businessHoursStart: [0, 23],
+    businessHoursEnd: [0, 23],
+    warmUpDays: [1, 60],
+    warmUpStartLimit: [1, 50],
+  };
 
-  if (hasHourlyLimit) {
-    const perMobileHourlyLimit = Number(body.perMobileHourlyLimit);
-    if (!Number.isFinite(perMobileHourlyLimit) || perMobileHourlyLimit < 1 || perMobileHourlyLimit > 100) {
-      return res.status(400).json({ message: "perMobileHourlyLimit must be between 1 and 100." });
-    }
-    settings.perMobileHourlyLimit = Math.floor(perMobileHourlyLimit);
-  }
-
-  // ── Anti-Bot Detection ──
-  if (hasAntiBot) {
-    settings.antiBotEnabled = Boolean(body.antiBotEnabled);
-  }
-
-  const numberValidations = [
-    ["minDelayMs", 2000, 60000],
-    ["maxDelayMs", 3000, 120000],
-    ["typingDurationMs", 1000, 10000],
-    ["longPauseChance", 0, 1],
-    ["longPauseMinMs", 5000, 300000],
-    ["longPauseMaxMs", 10000, 600000],
-  ];
-
-  for (const [field, min, max] of numberValidations) {
+  for (const [field, [min, max]] of Object.entries(numericRanges)) {
     const error = validateNumberField(body, field, min, max);
     if (error) {
       return res.status(400).json({ message: error });
     }
     if (Object.prototype.hasOwnProperty.call(body, field)) {
-      settings[field] = Number(body[field]);
+      const val = Number(body[field]);
+      settings[field] = field === "longPauseChance" ? val : Math.floor(val);
     }
   }
 
-  const booleanFields = ["typingSimulation", "shuffleRecipients", "longPauseEnabled"];
+  // ── Boolean fields ──
   for (const field of booleanFields) {
     if (Object.prototype.hasOwnProperty.call(body, field)) {
       settings[field] = Boolean(body[field]);
     }
   }
 
-  // Cross-validate: minDelayMs must be <= maxDelayMs
+  // ── Cross-validations ──
   if (settings.minDelayMs > settings.maxDelayMs) {
     return res.status(400).json({
       message: "minDelayMs must be less than or equal to maxDelayMs.",
     });
   }
-
-  // Cross-validate: longPauseMinMs must be <= longPauseMaxMs
   if (settings.longPauseMinMs > settings.longPauseMaxMs) {
     return res.status(400).json({
       message: "longPauseMinMs must be less than or equal to longPauseMaxMs.",

@@ -463,6 +463,28 @@ class WhatsappSessionManager {
     }
   }
 
+  async markChatRead(accountId, recipient) {
+    const client = this.getClient(accountId);
+    if (!client) {
+      return;
+    }
+
+    const normalized = this.normalizeRecipient(recipient);
+    if (!normalized) {
+      return;
+    }
+
+    try {
+      const chatId = await this.resolveRecipientChatId(client, normalized);
+      const chat = await client.getChatById(chatId);
+      if (chat && typeof chat.sendSeen === "function") {
+        await chat.sendSeen();
+      }
+    } catch (_error) {
+      // Read receipt errors are non-fatal.
+    }
+  }
+
   async restoreActiveSessions() {
     const accounts = await WaAccount.find({
       isActive: true,

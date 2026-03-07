@@ -14,6 +14,15 @@ const DEFAULT_ANTI_BOT = {
   longPauseChance: 0.1,
   longPauseMinMs: 30000,
   longPauseMaxMs: 120000,
+  // Phase 2
+  messageSpinning: true,
+  businessHoursEnabled: false,
+  businessHoursStart: 9,
+  businessHoursEnd: 21,
+  warmUpEnabled: false,
+  warmUpDays: 14,
+  warmUpStartLimit: 3,
+  readReceiptsBeforeSend: true,
 };
 
 const userSettingSchema = new mongoose.Schema(
@@ -38,7 +47,7 @@ const userSettingSchema = new mongoose.Schema(
       max: 100,
     },
 
-    // ── Anti-Bot Detection ──
+    // ── Anti-Bot Detection (Phase 1) ──
     antiBotEnabled: {
       type: Boolean,
       default: false,
@@ -90,6 +99,48 @@ const userSettingSchema = new mongoose.Schema(
       default: DEFAULT_ANTI_BOT.longPauseMaxMs,
       min: 10000,
       max: 600000,
+    },
+
+    // ── Anti-Bot Detection (Phase 2) ──
+    messageSpinning: {
+      type: Boolean,
+      default: true,
+    },
+    businessHoursEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    businessHoursStart: {
+      type: Number,
+      default: 9,
+      min: 0,
+      max: 23,
+    },
+    businessHoursEnd: {
+      type: Number,
+      default: 21,
+      min: 0,
+      max: 23,
+    },
+    warmUpEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    warmUpDays: {
+      type: Number,
+      default: 14,
+      min: 1,
+      max: 60,
+    },
+    warmUpStartLimit: {
+      type: Number,
+      default: 3,
+      min: 1,
+      max: 50,
+    },
+    readReceiptsBeforeSend: {
+      type: Boolean,
+      default: true,
     },
   },
   { timestamps: true },
