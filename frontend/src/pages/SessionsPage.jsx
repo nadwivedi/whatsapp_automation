@@ -45,7 +45,7 @@ function SessionsPage({
         </div>
       </header>
 
-      <div className="grid gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         {accounts.map((account) => {
           const isSessionRunning = ["initializing", "qr_ready", "authenticated"].includes(account.status);
 
@@ -53,10 +53,10 @@ function SessionsPage({
             <div key={account._id} className="glass-panel rounded-xl border border-white/80 p-3 sm:p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="font-heading truncate text-sm sm:text-base font-semibold text-slate-900">
+                  <p className="font-heading text-sm sm:text-base font-semibold text-slate-900 break-words">
                     {account.name}
                   </p>
-                  <p className="truncate text-[11px] sm:text-xs text-slate-600">
+                  <p className="text-xs text-slate-600 break-all">
                     {account.phoneNumber || "Not linked yet"}
                   </p>
                   <p className="mt-1 text-[11px] text-slate-500">
