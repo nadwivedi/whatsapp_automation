@@ -21,6 +21,7 @@ function MessagesPage({
     if (typeof window === "undefined") return false;
     return window.matchMedia("(max-width: 1023px)").matches;
   });
+  const [searchQuery, setSearchQuery] = useState("");
 
   const callbacksRef = useRef({
     loadConversations,
@@ -28,6 +29,7 @@ function MessagesPage({
   });
   const activeConversationRef = useRef(activeConversationNumber);
   const replyFormRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
   useEffect(() => {
     callbacksRef.current = {
@@ -62,10 +64,26 @@ function MessagesPage({
     }
   }, [isMobile]);
 
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [conversationMessages]);
+
   const activeConversation = useMemo(
     () => conversations.find((item) => item.contactNumber === activeConversationNumber) || null,
     [conversations, activeConversationNumber],
   );
+
+  const filteredConversations = useMemo(() => {
+    if (!searchQuery.trim()) return conversations;
+    const query = searchQuery.toLowerCase();
+    return conversations.filter(
+      (item) =>
+        item.contactNumber?.includes(query) ||
+        item.sessionMobileNumber?.toLowerCase().includes(query)
+    );
+  }, [conversations, searchQuery]);
 
   useEffect(() => {
     let stopped = false;
@@ -101,7 +119,6 @@ function MessagesPage({
             refreshInbox().catch(() => {});
           }
         } catch (_error) {
-          // Ignore malformed events.
         }
       };
 
@@ -109,7 +126,6 @@ function MessagesPage({
         try {
           socket.close();
         } catch (_error) {
-          // Ignore close failures after socket errors.
         }
       };
 
@@ -138,7 +154,6 @@ function MessagesPage({
         try {
           socket.close();
         } catch (_error) {
-          // Ignore close errors while unmounting.
         }
       }
     };
@@ -182,174 +197,276 @@ function MessagesPage({
     }
   }
 
+  function getInitials(phone) {
+    if (!phone) return "?";
+    return phone.slice(-2).toUpperCase();
+  }
+
+  function formatLastMessage(item) {
+    if (!item.lastInboundMessage) return "No messages yet";
+    const text = item.lastInboundMessage.text || "(Media)";
+    return text.length > 35 ? text.slice(0, 35) + "..." : text;
+  }
+
+  function formatContactName(item) {
+    if (item.contactName) return item.contactName;
+    return item.contactNumber;
+  }
+
   const showListPanel = !isMobile || !mobileChatOpen;
   const showChatPanel = !isMobile || mobileChatOpen;
 
   return (
-    <section className="space-y-4 sm:space-y-6">
-      <header className="flex flex-wrap items-start sm:items-center justify-between gap-2">
-        <div>
-          <p className="font-heading text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-500">Inbox</p>
-          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-900">Replies</h1>
-        </div>
-        <button className="btn-cyan" onClick={handleRefreshInbox} disabled={conversationsLoading}>
-          {conversationsLoading ? "Refreshing..." : "Refresh Inbox"}
-        </button>
-      </header>
-
-      <div className="glass-panel rounded-2xl p-3 sm:p-4">
-        <div className="grid gap-3 lg:grid-cols-[320px,1fr]">
-          {showListPanel && (
-            <aside className="rounded-2xl border border-white/70 bg-white/70 p-2 sm:p-3">
-              <div className="mb-3 flex items-center justify-between px-1">
-                <h2 className="font-heading text-sm sm:text-base font-semibold text-slate-900">Numbers</h2>
-                <p className="text-xs text-slate-500">{conversations.length}</p>
+    <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex">
+      <div className="flex w-full rounded-2xl overflow-hidden bg-white shadow-2xl">
+        {showListPanel && (
+          <aside className="w-80 min-w-[280px] bg-[#ffffff] border-r border-gray-100 flex flex-col">
+            <div className="bg-[#f0f2f5] px-4 py-3 flex items-center justify-between">
+              <h1 className="text-xl font-bold text-gray-800">Chats</h1>
+              <button 
+                onClick={handleRefreshInbox} 
+                disabled={conversationsLoading}
+                className="p-2 rounded-full hover:bg-gray-200 transition disabled:opacity-50"
+                title="Refresh"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={conversationsLoading ? "animate-spin" : ""}>
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                  <path d="M16 21h5v-5"/>
+                </svg>
+              </button>
+            </div>
+            
+            <div className="px-3 py-2 bg-white">
+              <div className="bg-[#f0f2f5] rounded-full px-4 py-2.5 flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#667781" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.3-4.3"/>
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search or start new chat"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-transparent outline-none text-sm placeholder:text-gray-500"
+                />
               </div>
+            </div>
 
-              <div className="max-h-[68vh] space-y-2 overflow-y-auto pr-1">
-                {conversations.length === 0 ? (
-                  <p className="empty">No replies yet.</p>
-                ) : (
-                  conversations.map((item) => (
-                    <button
-                      key={item.contactNumber}
-                      type="button"
-                      onClick={() => handleOpenConversation(item.contactNumber)}
-                      className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                        item.contactNumber === activeConversationNumber
-                          ? "border-cyan-300 bg-cyan-50"
-                          : "border-transparent bg-white/70 hover:border-slate-200"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-slate-900">{item.contactNumber}</p>
-                        <div className="flex items-center gap-1.5">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
-                            {item.inboundMessageCount || 0}
-                          </span>
-                          {item.unreadCount > 0 && (
-                            <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                              {item.unreadCount}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        Session: {item.sessionMobileNumber || "--"}
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500">User messages: {item.inboundMessageCount || 0}</p>
-                    </button>
-                  ))
-                )}
-              </div>
-            </aside>
-          )}
-
-          {showChatPanel && (
-            <div className="rounded-2xl border border-white/70 bg-white/70 p-3 sm:p-4">
-              {isMobile && (
-                <div className="mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setMobileChatOpen(false)}
-                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700"
-                  >
-                    Back To Numbers
-                  </button>
+            <div className="flex-1 overflow-y-auto">
+              {filteredConversations.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <p>{searchQuery ? "No chats found" : "No conversations yet"}</p>
                 </div>
+              ) : (
+                filteredConversations.map((item) => (
+                  <button
+                    key={item.contactNumber}
+                    type="button"
+                    onClick={() => handleOpenConversation(item.contactNumber)}
+                    className={`w-full px-3 py-3 flex items-center gap-3 hover:bg-[#f5f6f7] transition border-b border-gray-50 ${
+                      item.contactNumber === activeConversationNumber ? "bg-[#f0f2f5]" : ""
+                    }`}
+                  >
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-full bg-[#e8e8e8] flex items-center justify-center text-sm font-semibold text-gray-600">
+                        {getInitials(item.contactNumber)}
+                      </div>
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#25d366] rounded-full border-2 border-white"></div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-gray-900 truncate">{formatContactName(item)}</span>
+                        <span className="text-xs text-gray-500">
+                          {item.lastMessageAt ? formatDateTime(item.lastMessageAt).time : ""}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-sm text-gray-500 truncate">{formatLastMessage(item)}</span>
+                        {item.unreadCount > 0 && (
+                          <span className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-[#25d366] text-white text-xs font-semibold">
+                            {item.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                ))
               )}
+            </div>
+          </aside>
+        )}
 
-              <div className="mb-3 border-b border-slate-200 pb-2.5">
-                <p className="text-xs uppercase tracking-wider text-slate-500">Chat</p>
-                <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">
-                  {activeConversation?.contactNumber || "Select a number"}
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Session: {activeConversation?.sessionMobileNumber || "--"}
-                </p>
+        {showChatPanel && (
+          <div className="flex-1 flex flex-col bg-[#e5ded8]">
+            {isMobile && mobileChatOpen && (
+              <div className="bg-[#f0f2f5] px-2 py-2 flex items-center gap-2">
+                <button type="button" onClick={() => setMobileChatOpen(false)} className="p-1.5 rounded-full hover:bg-gray-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m15 18-6-6 6-6"/>
+                  </svg>
+                </button>
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-full bg-[#e8e8e8] flex items-center justify-center text-xs font-semibold text-gray-600">
+                    {getInitials(activeConversation?.contactNumber)}
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm">{activeConversation?.contactNumber || "Chat"}</div>
+                    <div className="text-xs text-gray-500">Session: {activeConversation?.sessionMobileNumber || "--"}</div>
+                  </div>
+                </div>
               </div>
+            )}
 
-              <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
-                {conversationMessagesLoading ? (
-                  <p className="empty">Loading conversation...</p>
-                ) : !activeConversationNumber ? (
-                  <p className="empty">Select a number from left panel.</p>
-                ) : conversationMessages.length === 0 ? (
-                  <p className="empty">No messages for this number yet.</p>
-                ) : (
-                  conversationMessages.map((message) => {
+            {!isMobile && (
+              <div className="bg-[#f0f2f5] px-4 py-2.5 flex items-center gap-3 border-b border-gray-200">
+                <div className="w-10 h-10 rounded-full bg-[#e8e8e8] flex items-center justify-center text-sm font-semibold text-gray-600">
+                  {getInitials(activeConversation?.contactNumber)}
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">{activeConversation?.contactNumber || "Select a chat"}</div>
+                  <div className="text-xs text-gray-500">
+                    {activeConversation ? `Session: ${activeConversation.sessionMobileNumber || "--"}` : "WhatsApp"}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto bg-[#e5ded8] p-4 relative">
+              <div className="absolute inset-0 opacity-10 pointer-events-none"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M20 20.5V29M20 11v9' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E")`,
+                  backgroundSize: '40px 40px'
+                }}
+              />
+              
+              {!activeConversationNumber ? (
+                <div className="h-full flex flex-col items-center justify-center text-center px-8">
+                  <div className="w-24 h-24 mb-4 rounded-full bg-[#e8e8e8] flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#667781" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                    </svg>
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-700 mb-1">WhatsApp Message Hub</h2>
+                  <p className="text-gray-500 text-sm">Select a conversation to start messaging</p>
+                </div>
+              ) : conversationMessagesLoading ? (
+                <div className="h-full flex flex-col items-center justify-center">
+                  <div className="w-10 h-10 border-4 border-[#25d366] border-t-transparent rounded-full animate-spin mb-3"></div>
+                  <p className="text-gray-500 text-sm">Loading messages...</p>
+                </div>
+              ) : conversationMessages.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <p className="text-gray-500 text-sm">No messages yet. Start the conversation!</p>
+                </div>
+              ) : (
+                <div className="space-y-1 pb-2">
+                  {conversationMessages.map((message) => {
                     const isInbound = message.direction === "inbound";
                     const { date, time } = formatDateTime(message.messageAt || message.sentAt || message.createdAt);
                     return (
                       <div key={`${message.source}-${message._id}`} className={`flex ${isInbound ? "justify-start" : "justify-end"}`}>
-                        <div
-                          className={`max-w-[86%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
-                            isInbound
-                              ? "bg-slate-100 text-slate-900"
-                              : message.status === "failed"
-                                ? "bg-rose-100 text-rose-800"
-                                : "bg-cyan-500 text-white"
-                          }`}
-                        >
-                          <p className="whitespace-pre-wrap break-words">{message.text || "(No text)"}</p>
-                          <p className={`mt-1 text-[10px] ${isInbound ? "text-slate-500" : "text-white/85"}`}>
-                            {`From ${message.senderMobileNumber || "--"} -> ${message.recipientMobileNumber || "--"}`}
-                          </p>
-                          <div className={`mt-1.5 flex items-center gap-2 text-[10px] ${isInbound ? "text-slate-500" : "text-white/85"}`}>
-                            <span>{date}</span>
-                            <span>{time}</span>
-                            <span className="uppercase">{message.source}</span>
-                            {!isInbound && <span className="uppercase">{message.status}</span>}
+                        <div className={`max-w-[70%] rounded-lg px-3 py-2 shadow-sm ${
+                          isInbound
+                            ? "bg-white text-gray-900 rounded-tl-none"
+                            : message.status === "failed"
+                              ? "bg-[#ffebee] text-red-800 rounded-tr-none"
+                              : "bg-[#d9fdd3] text-gray-900 rounded-tr-none"
+                        }`}>
+                          <div className="whitespace-pre-wrap break-words text-sm">{message.text || "(No text)"}</div>
+                          <div className="flex items-center justify-end gap-1 mt-1">
+                            <span className="text-[10px] text-gray-500">{date}</span>
+                            <span className="text-[10px] text-gray-500">{time}</span>
+                            {!isInbound && (
+                              <span className="text-[10px]">
+                                {message.status === "sent" && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#667781" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                  </svg>
+                                )}
+                                {message.status === "delivered" && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#667781" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                    <polyline points="20 12 9 23 4 18"/>
+                                  </svg>
+                                )}
+                                {message.status === "read" && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34b7f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                    <polyline points="20 12 9 23 4 18"/>
+                                  </svg>
+                                )}
+                                {message.status === "failed" && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f44336" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="15" y1="9" x2="9" y2="15"/>
+                                    <line x1="9" y1="9" x2="15" y2="15"/>
+                                  </svg>
+                                )}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
                     );
-                  })
-                )}
-              </div>
-
-              <form ref={replyFormRef} onSubmit={handleSendReply} className="mt-3 grid gap-2 border-t border-slate-200 pt-3">
-                <div className="grid gap-2 sm:grid-cols-[1fr,220px]">
-                  <textarea
-                    value={replyText}
-                    onChange={(event) => setReplyText(event.target.value)}
-                    onKeyDown={handleReplyKeyDown}
-                    rows={3}
-                    className="input resize-none"
-                    placeholder={activeConversationNumber ? `Reply to ${activeConversationNumber}` : "Select conversation first"}
-                    disabled={!activeConversationNumber || sendingReply}
-                  />
-                  <select
-                    value={selectedAccountId}
-                    onChange={(event) => setSelectedAccountId(event.target.value)}
-                    className="input"
-                    disabled={sendingReply}
-                  >
-                    <option value="">Auto-select session</option>
-                    {accounts
-                      .filter((account) => account.isActive !== false && account.status === "authenticated")
-                      .map((account) => (
-                        <option key={account._id} value={account._id}>
-                          {account.phoneNumber || account.name}
-                        </option>
-                      ))}
-                  </select>
+                  })}
+                  <div ref={messagesEndRef} />
                 </div>
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    className="btn-cyan"
-                    disabled={!activeConversationNumber || sendingReply || !replyText.trim()}
-                  >
-                    {sendingReply ? "Sending..." : "Send Reply"}
-                  </button>
-                </div>
-              </form>
+              )}
             </div>
-          )}
-        </div>
+
+            <form ref={replyFormRef} onSubmit={handleSendReply} className="bg-[#f0f2f5] px-4 py-3 flex items-end gap-2">
+              {!activeConversationNumber ? (
+                <div className="flex-1 bg-[#e8e8e8] rounded-full px-4 py-3 text-gray-500 text-sm">
+                  Select a conversation to reply
+                </div>
+              ) : (
+                <>
+                  <div className="shrink-0">
+                    <select
+                      value={selectedAccountId}
+                      onChange={(event) => setSelectedAccountId(event.target.value)}
+                      className="bg-white border border-gray-300 rounded-lg px-2 py-2 text-xs outline-none focus:border-[#25d366]"
+                      disabled={sendingReply}
+                    >
+                      <option value="">Auto</option>
+                      {accounts
+                        .filter((account) => account.isActive !== false && account.status === "authenticated")
+                        .map((account) => (
+                          <option key={account._id} value={account._id}>
+                            {account.phoneNumber || account.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="flex-1 flex items-end gap-2 bg-white rounded-full px-4 py-2 border border-gray-300 focus-within:border-[#25d366]">
+                    <textarea
+                      value={replyText}
+                      onChange={(event) => setReplyText(event.target.value)}
+                      onKeyDown={handleReplyKeyDown}
+                      rows={1}
+                      className="flex-1 bg-transparent outline-none text-sm resize-none max-h-32"
+                      placeholder="Type a message..."
+                      disabled={!activeConversationNumber || sendingReply}
+                    />
+                    <button
+                      type="submit"
+                      className="p-1.5 rounded-full bg-[#25d366] text-white hover:bg-[#20bd5a] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!activeConversationNumber || sendingReply || !replyText.trim()}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </>
+              )}
+            </form>
+          </div>
+        )}
       </div>
-    </section>
+    </div>
   );
 }
 
