@@ -146,29 +146,7 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
 
   return (
     <section className="space-y-5 sm:space-y-6">
-      <header className="glass-panel-dark flex items-center justify-between gap-3 rounded-2xl px-4 py-4 sm:px-6 sm:py-5">
-        <div>
-          <p className="font-heading text-[10px] uppercase tracking-[0.25em] text-slate-500 sm:text-xs">Control</p>
-          <h1 className="font-heading text-2xl font-bold text-slate-900 sm:text-3xl">Settings</h1>
-          <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-            Define global limits per mobile/account and monitor available sending capacity.
-          </p>
-        </div>
-        <button className="btn-dark shrink-0" onClick={refreshAll} disabled={refreshing}>
-          {refreshing ? "Refreshing..." : "Refresh"}
-        </button>
-      </header>
-
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <div className="glass-panel-dark group relative overflow-hidden rounded-2xl p-3 transition-transform hover:scale-[1.02] sm:p-5">
-          <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-cyan-300/30 transition-transform group-hover:scale-150" />
-          <p className="relative text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:text-xs">Connected Accounts</p>
-          <p className="relative mt-1.5 font-heading text-2xl font-bold text-slate-900 sm:mt-2 sm:text-4xl">{preview.activeConnectedCount}</p>
-          <p className="relative mt-1 text-[10px] leading-tight text-slate-600 sm:text-xs">
-            Only active authenticated sessions are counted.
-          </p>
-        </div>
-
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <div className="glass-panel-dark group relative overflow-hidden rounded-2xl p-3 transition-transform hover:scale-[1.02] sm:p-5">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-emerald-300/30 transition-transform group-hover:scale-150" />
           <p className="relative text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:text-xs">Available Next Hour</p>
@@ -189,7 +167,12 @@ function SettingsPage({ settings, accounts, busy, saveSettings, refreshAll, refr
 
         <div className="glass-panel-dark group relative overflow-hidden rounded-2xl p-3 transition-transform hover:scale-[1.02] sm:p-5">
           <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-indigo-300/30 transition-transform group-hover:scale-150" />
-          <p className="relative text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:text-xs">Last Updated</p>
+          <div className="relative flex items-center justify-between">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:text-xs">Last Updated</p>
+            <button className="btn-dark shrink-0 text-[10px] px-2 py-1 sm:text-xs" onClick={refreshAll} disabled={refreshing}>
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
           <p className="relative mt-1.5 text-sm font-semibold text-slate-900 sm:mt-2 sm:text-lg">{formatDate(settings?.updatedAt)}</p>
           <p className="relative mt-1 text-[10px] leading-tight text-slate-600 sm:text-xs">
             Changes apply to new queue decisions immediately.
