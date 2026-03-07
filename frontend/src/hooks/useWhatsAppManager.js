@@ -45,6 +45,16 @@ import { countRecipients } from "../utils/formatters";
 const DEFAULT_SETTINGS = {
   perMobileDailyLimit: 20,
   perMobileHourlyLimit: 2,
+  antiBotEnabled: false,
+  minDelayMs: 5000,
+  maxDelayMs: 15000,
+  typingSimulation: true,
+  typingDurationMs: 3000,
+  shuffleRecipients: true,
+  longPauseEnabled: true,
+  longPauseChance: 0.1,
+  longPauseMinMs: 30000,
+  longPauseMaxMs: 120000,
 };
 
 function formatBulkInsertError(error) {
@@ -242,7 +252,7 @@ export function useWhatsAppManager() {
 
     const timer = window.setInterval(() => {
       loadDashboard(token, { silent: true });
-      loadProfile(token).catch(() => {});
+      loadProfile(token).catch(() => { });
     }, 12000);
 
     return () => {
@@ -312,14 +322,14 @@ export function useWhatsAppManager() {
       const payload =
         authMode === "login"
           ? await login({
-              mobileNumber: authForm.mobileNumber.trim(),
-              password: authForm.password,
-            })
+            mobileNumber: authForm.mobileNumber.trim(),
+            password: authForm.password,
+          })
           : await register({
-              name: authForm.name.trim(),
-              mobileNumber: authForm.mobileNumber.trim(),
-              password: authForm.password,
-            });
+            name: authForm.name.trim(),
+            mobileNumber: authForm.mobileNumber.trim(),
+            password: authForm.password,
+          });
 
       setToken("session");
       setProfile({ user: payload.user, stats: payload.stats });
@@ -655,10 +665,10 @@ export function useWhatsAppManager() {
       const preferredSelection = String(preferredContactNumber || "").trim();
       const existingActive =
         preserveSelection &&
-        (preferredSelection || activeConversationNumber) &&
-        nextConversations.some(
-          (item) => item.contactNumber === (preferredSelection || activeConversationNumber),
-        )
+          (preferredSelection || activeConversationNumber) &&
+          nextConversations.some(
+            (item) => item.contactNumber === (preferredSelection || activeConversationNumber),
+          )
           ? (preferredSelection || activeConversationNumber)
           : "";
 
@@ -692,7 +702,7 @@ export function useWhatsAppManager() {
       setConversationMessages(nextMessages);
 
       if (markRead) {
-        await markConversationReadApi(token, contactNumber).catch(() => {});
+        await markConversationReadApi(token, contactNumber).catch(() => { });
         await loadConversations({
           preserveSelection: true,
           silent: true,

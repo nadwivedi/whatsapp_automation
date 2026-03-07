@@ -1,5 +1,5 @@
 const { WaAccount } = require("../models/WaAccount");
-const { UserSetting } = require("../models/UserSetting");
+const { UserSetting, DEFAULT_ANTI_BOT } = require("../models/UserSetting");
 
 function serializeSettings(settings) {
   return {
@@ -7,6 +7,17 @@ function serializeSettings(settings) {
     owner: settings.owner,
     perMobileDailyLimit: settings.perMobileDailyLimit,
     perMobileHourlyLimit: settings.perMobileHourlyLimit,
+    // Anti-Bot Detection
+    antiBotEnabled: settings.antiBotEnabled ?? DEFAULT_ANTI_BOT.antiBotEnabled,
+    minDelayMs: settings.minDelayMs ?? DEFAULT_ANTI_BOT.minDelayMs,
+    maxDelayMs: settings.maxDelayMs ?? DEFAULT_ANTI_BOT.maxDelayMs,
+    typingSimulation: settings.typingSimulation ?? DEFAULT_ANTI_BOT.typingSimulation,
+    typingDurationMs: settings.typingDurationMs ?? DEFAULT_ANTI_BOT.typingDurationMs,
+    shuffleRecipients: settings.shuffleRecipients ?? DEFAULT_ANTI_BOT.shuffleRecipients,
+    longPauseEnabled: settings.longPauseEnabled ?? DEFAULT_ANTI_BOT.longPauseEnabled,
+    longPauseChance: settings.longPauseChance ?? DEFAULT_ANTI_BOT.longPauseChance,
+    longPauseMinMs: settings.longPauseMinMs ?? DEFAULT_ANTI_BOT.longPauseMinMs,
+    longPauseMaxMs: settings.longPauseMaxMs ?? DEFAULT_ANTI_BOT.longPauseMaxMs,
     createdAt: settings.createdAt,
     updatedAt: settings.updatedAt,
   };
@@ -103,20 +114,46 @@ async function getSettings(req, res) {
   });
 }
 
-async function updateSettings(req, res) {
-  const hasDailyLimit = Object.prototype.hasOwnProperty.call(req.body || {}, "perMobileDailyLimit");
-  const hasHourlyLimit = Object.prototype.hasOwnProperty.call(req.body || {}, "perMobileHourlyLimit");
+function validateNumberField(body, field, min, max) {
+  if (!Object.prototype.hasOwnProperty.call(body || {}, field)) {
+    return null;
+  }
+  const value = Number(body[field]);
+  if (!Number.isFinite(value) || value < min || value > max) {
+    return `${field} must be between ${min} and ${max}.`;
+  }
+  return null;
+}
 
-  if (!hasDailyLimit && !hasHourlyLimit) {
+async function updateSettings(req, res) {
+  const body = req.body || {};
+  const hasDailyLimit = Object.prototype.hasOwnProperty.call(body, "perMobileDailyLimit");
+  const hasHourlyLimit = Object.prototype.hasOwnProperty.call(body, "perMobileHourlyLimit");
+  const hasAntiBot = Object.prototype.hasOwnProperty.call(body, "antiBotEnabled");
+
+  const hasAnyAntiBotField =
+    hasAntiBot ||
+    Object.prototype.hasOwnProperty.call(body, "minDelayMs") ||
+    Object.prototype.hasOwnProperty.call(body, "maxDelayMs") ||
+    Object.prototype.hasOwnProperty.call(body, "typingSimulation") ||
+    Object.prototype.hasOwnProperty.call(body, "typingDurationMs") ||
+    Object.prototype.hasOwnProperty.call(body, "shuffleRecipients") ||
+    Object.prototype.hasOwnProperty.call(body, "longPauseEnabled") ||
+    Object.prototype.hasOwnProperty.call(body, "longPauseChance") ||
+    Object.prototype.hasOwnProperty.call(body, "longPauseMinMs") ||
+    Object.prototype.hasOwnProperty.call(body, "longPauseMaxMs");
+
+  if (!hasDailyLimit && !hasHourlyLimit && !hasAnyAntiBotField) {
     return res.status(400).json({
-      message: "At least one setting is required: perMobileDailyLimit or perMobileHourlyLimit.",
+      message: "At least one setting field is required.",
     });
   }
 
   const settings = await UserSetting.getOrCreate(req.user._id);
 
+  // ── Message Limits ──
   if (hasDailyLimit) {
-    const perMobileDailyLimit = Number(req.body?.perMobileDailyLimit);
+    const perMobileDailyLimit = Number(body.perMobileDailyLimit);
     if (!Number.isFinite(perMobileDailyLimit) || perMobileDailyLimit < 1 || perMobileDailyLimit > 500) {
       return res.status(400).json({ message: "perMobileDailyLimit must be between 1 and 500." });
     }
@@ -124,15 +161,56 @@ async function updateSettings(req, res) {
   }
 
   if (hasHourlyLimit) {
-    const perMobileHourlyLimit = Number(req.body?.perMobileHourlyLimit);
-    if (
-      !Number.isFinite(perMobileHourlyLimit) ||
-      perMobileHourlyLimit < 1 ||
-      perMobileHourlyLimit > 100
-    ) {
+    const perMobileHourlyLimit = Number(body.perMobileHourlyLimit);
+    if (!Number.isFinite(perMobileHourlyLimit) || perMobileHourlyLimit < 1 || perMobileHourlyLimit > 100) {
       return res.status(400).json({ message: "perMobileHourlyLimit must be between 1 and 100." });
     }
     settings.perMobileHourlyLimit = Math.floor(perMobileHourlyLimit);
+  }
+
+  // ── Anti-Bot Detection ──
+  if (hasAntiBot) {
+    settings.antiBotEnabled = Boolean(body.antiBotEnabled);
+  }
+
+  const numberValidations = [
+    ["minDelayMs", 2000, 60000],
+    ["maxDelayMs", 3000, 120000],
+    ["typingDurationMs", 1000, 10000],
+    ["longPauseChance", 0, 1],
+    ["longPauseMinMs", 5000, 300000],
+    ["longPauseMaxMs", 10000, 600000],
+  ];
+
+  for (const [field, min, max] of numberValidations) {
+    const error = validateNumberField(body, field, min, max);
+    if (error) {
+      return res.status(400).json({ message: error });
+    }
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      settings[field] = Number(body[field]);
+    }
+  }
+
+  const booleanFields = ["typingSimulation", "shuffleRecipients", "longPauseEnabled"];
+  for (const field of booleanFields) {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      settings[field] = Boolean(body[field]);
+    }
+  }
+
+  // Cross-validate: minDelayMs must be <= maxDelayMs
+  if (settings.minDelayMs > settings.maxDelayMs) {
+    return res.status(400).json({
+      message: "minDelayMs must be less than or equal to maxDelayMs.",
+    });
+  }
+
+  // Cross-validate: longPauseMinMs must be <= longPauseMaxMs
+  if (settings.longPauseMinMs > settings.longPauseMaxMs) {
+    return res.status(400).json({
+      message: "longPauseMinMs must be less than or equal to longPauseMaxMs.",
+    });
   }
 
   await settings.save();

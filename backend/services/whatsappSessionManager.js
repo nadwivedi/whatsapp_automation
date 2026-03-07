@@ -99,7 +99,17 @@ class WhatsappSessionManager {
       }),
       puppeteer: {
         headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-blink-features=AutomationControlled",
+          "--disable-infobars",
+          "--disable-dev-shm-usage",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "--disable-extensions",
+          `--window-size=${1280 + Math.floor(Math.random() * 200)},${800 + Math.floor(Math.random() * 200)}`,
+        ],
       },
     });
 
@@ -216,7 +226,7 @@ class WhatsappSessionManager {
     const mapKey = String(accountId);
     const inFlightStart = this.startingSessions.get(mapKey);
     if (inFlightStart) {
-      await inFlightStart.catch(() => {});
+      await inFlightStart.catch(() => { });
     }
 
     const client = this.clients.get(mapKey);
@@ -425,6 +435,32 @@ class WhatsappSessionManager {
   async sendMediaMessage(accountId, recipient, media, caption = "") {
     const result = await this.sendMediaMessageDetailed(accountId, recipient, media, caption);
     return result?.providerMessageId || null;
+  }
+
+  async simulateTyping(accountId, recipient, durationMs = 3000) {
+    const client = this.getClient(accountId);
+    if (!client) {
+      return;
+    }
+
+    const normalized = this.normalizeRecipient(recipient);
+    if (!normalized) {
+      return;
+    }
+
+    try {
+      const chatId = await this.resolveRecipientChatId(client, normalized);
+      const chat = await client.getChatById(chatId);
+      if (chat && typeof chat.sendStateTyping === "function") {
+        await chat.sendStateTyping();
+        await new Promise((resolve) => setTimeout(resolve, durationMs));
+        if (typeof chat.clearState === "function") {
+          await chat.clearState();
+        }
+      }
+    } catch (_error) {
+      // Typing simulation errors are non-fatal.
+    }
   }
 
   async restoreActiveSessions() {

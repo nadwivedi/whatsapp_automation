@@ -5,6 +5,7 @@ const {
   UserSetting,
   DEFAULT_PER_MOBILE_DAILY_LIMIT,
   DEFAULT_PER_MOBILE_HOURLY_LIMIT,
+  DEFAULT_ANTI_BOT,
 } = require("../models/UserSetting");
 const whatsappSessionManager = require("./whatsappSessionManager");
 const { parseRecipients } = require("../utils/phone");
@@ -15,11 +16,29 @@ const SAFEGUARD_PER_NUMBER_DAILY = Number(process.env.SAFEGUARD_PER_NUMBER_DAILY
 const SAFEGUARD_PER_NUMBER_HOURLY = Number(process.env.SAFEGUARD_PER_NUMBER_HOURLY || 2);
 const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+function randomBetween(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shuffleArray(array) {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 class CampaignQueue {
   constructor() {
     this.timer = null;
     this.isTickRunning = false;
-    this.lastSendByAccount = new Map();
+    // Tracks per-account: { lastSentAt, nextAllowedAt }
+    this.accountCooldowns = new Map();
   }
 
   start() {
@@ -41,16 +60,53 @@ class CampaignQueue {
     }
   }
 
+  /**
+   * Per-account throttle: each account has its own cooldown.
+   * When anti-bot is ON, a random delay (minDelayMs–maxDelayMs) is assigned
+   * per-account after each send. Other accounts are NOT affected.
+   * When anti-bot is OFF, the fixed MIN_GAP_PER_ACCOUNT_MS is used.
+   */
   isAccountThrottled(accountId) {
-    const lastSentAt = this.lastSendByAccount.get(String(accountId));
-    if (!lastSentAt) {
+    const key = String(accountId);
+    const cooldown = this.accountCooldowns.get(key);
+    if (!cooldown) {
       return false;
     }
-    return Date.now() - lastSentAt < MIN_GAP_PER_ACCOUNT_MS;
+    return Date.now() < cooldown.nextAllowedAt;
   }
 
-  markAccountSent(accountId) {
-    this.lastSendByAccount.set(String(accountId), Date.now());
+  /**
+   * After sending a message, set the per-account cooldown.
+   * - Anti-bot ON: random delay between minDelayMs and maxDelayMs
+   * - Anti-bot OFF: fixed MIN_GAP_PER_ACCOUNT_MS
+   */
+  markAccountSent(accountId, antiBot) {
+    const now = Date.now();
+    let cooldownMs;
+
+    if (antiBot && antiBot.antiBotEnabled) {
+      const minDelay = antiBot.minDelayMs || DEFAULT_ANTI_BOT.minDelayMs;
+      const maxDelay = antiBot.maxDelayMs || DEFAULT_ANTI_BOT.maxDelayMs;
+      cooldownMs = randomBetween(minDelay, maxDelay);
+
+      // Occasional long pause (per-account)
+      if (
+        antiBot.longPauseEnabled &&
+        Math.random() < (antiBot.longPauseChance || DEFAULT_ANTI_BOT.longPauseChance)
+      ) {
+        cooldownMs += randomBetween(
+          antiBot.longPauseMinMs || DEFAULT_ANTI_BOT.longPauseMinMs,
+          antiBot.longPauseMaxMs || DEFAULT_ANTI_BOT.longPauseMaxMs,
+        );
+      }
+    } else {
+      cooldownMs = MIN_GAP_PER_ACCOUNT_MS;
+    }
+
+    this.accountCooldowns.set(String(accountId), {
+      lastSentAt: now,
+      nextAllowedAt: now + cooldownMs,
+    });
   }
 
   resetCampaignDailyWindowIfNeeded(campaign) {
@@ -59,7 +115,6 @@ class CampaignQueue {
 
     if (!dayStart) {
       if ((Number(campaign.sentToday) || 0) !== 0) {
-        // Keep existing usage and start strict 24h tracking from now.
         campaign.dayWindowStart = new Date();
       }
       return;
@@ -86,11 +141,23 @@ class CampaignQueue {
       return {
         perMobileDailyLimit: settings.perMobileDailyLimit || DEFAULT_PER_MOBILE_DAILY_LIMIT,
         perMobileHourlyLimit: settings.perMobileHourlyLimit || DEFAULT_PER_MOBILE_HOURLY_LIMIT,
+        // Anti-Bot fields
+        antiBotEnabled: settings.antiBotEnabled ?? DEFAULT_ANTI_BOT.antiBotEnabled,
+        minDelayMs: settings.minDelayMs ?? DEFAULT_ANTI_BOT.minDelayMs,
+        maxDelayMs: settings.maxDelayMs ?? DEFAULT_ANTI_BOT.maxDelayMs,
+        typingSimulation: settings.typingSimulation ?? DEFAULT_ANTI_BOT.typingSimulation,
+        typingDurationMs: settings.typingDurationMs ?? DEFAULT_ANTI_BOT.typingDurationMs,
+        shuffleRecipients: settings.shuffleRecipients ?? DEFAULT_ANTI_BOT.shuffleRecipients,
+        longPauseEnabled: settings.longPauseEnabled ?? DEFAULT_ANTI_BOT.longPauseEnabled,
+        longPauseChance: settings.longPauseChance ?? DEFAULT_ANTI_BOT.longPauseChance,
+        longPauseMinMs: settings.longPauseMinMs ?? DEFAULT_ANTI_BOT.longPauseMinMs,
+        longPauseMaxMs: settings.longPauseMaxMs ?? DEFAULT_ANTI_BOT.longPauseMaxMs,
       };
     } catch (_error) {
       return {
         perMobileDailyLimit: DEFAULT_PER_MOBILE_DAILY_LIMIT,
         perMobileHourlyLimit: DEFAULT_PER_MOBILE_HOURLY_LIMIT,
+        ...DEFAULT_ANTI_BOT,
       };
     }
   }
@@ -264,8 +331,9 @@ class CampaignQueue {
       }
       this.resetCampaignDailyWindowIfNeeded(campaign);
       const ownerSettings = await this.getOwnerSettings(campaign.owner);
+      const antiBot = ownerSettings;
 
-      const messages = await CampaignMessage.find({
+      let messages = await CampaignMessage.find({
         owner: campaign.owner,
         campaign: campaign._id,
         status: "pending",
@@ -276,6 +344,11 @@ class CampaignQueue {
       if (!messages.length) {
         await this.finishCampaignIfDone(campaign);
         return;
+      }
+
+      // ── Anti-Bot: Shuffle pending messages ──
+      if (antiBot.antiBotEnabled && antiBot.shuffleRecipients && messages.length > 1) {
+        messages = shuffleArray(messages);
       }
 
       const accountCache = new Map();
@@ -337,8 +410,17 @@ class CampaignQueue {
           lastBlockReason = "One or more selected sessions are not authenticated.";
           continue;
         }
+
+        // Per-account throttle: only THIS account is checked for cooldown.
+        // Other accounts can send freely even if this one is cooling down.
         if (this.isAccountThrottled(account._id)) {
-          lastBlockReason = "Selected sessions are cooling down. Retrying shortly.";
+          const cooldown = this.accountCooldowns.get(String(account._id));
+          const remainingSec = cooldown
+            ? Math.ceil((cooldown.nextAllowedAt - Date.now()) / 1000)
+            : 0;
+          lastBlockReason = antiBot.antiBotEnabled
+            ? `Anti-bot: account ${account.phoneNumber || account.name || ""} cooling down (${remainingSec}s). Other accounts may still send.`
+            : "Selected sessions are cooling down. Retrying shortly.";
           continue;
         }
 
@@ -354,22 +436,35 @@ class CampaignQueue {
       }
 
       try {
+        // ── Anti-Bot: Typing simulation (per-account, before send) ──
+        if (antiBot.antiBotEnabled && antiBot.typingSimulation) {
+          try {
+            await whatsappSessionManager.simulateTyping(
+              selectedAccount._id,
+              selectedMessage.recipient,
+              antiBot.typingDurationMs || DEFAULT_ANTI_BOT.typingDurationMs,
+            );
+          } catch (_typingError) {
+            // Typing simulation failure should not block message delivery.
+          }
+        }
+
         const delivery = campaign.mediaData
           ? await whatsappSessionManager.sendMediaMessageDetailed(
-              selectedAccount._id,
-              selectedMessage.recipient,
-              {
-                mediaData: campaign.mediaData,
-                mediaMimeType: campaign.mediaMimeType,
-                mediaFileName: campaign.mediaFileName,
-              },
-              selectedMessage.text,
-            )
+            selectedAccount._id,
+            selectedMessage.recipient,
+            {
+              mediaData: campaign.mediaData,
+              mediaMimeType: campaign.mediaMimeType,
+              mediaFileName: campaign.mediaFileName,
+            },
+            selectedMessage.text,
+          )
           : await whatsappSessionManager.sendTextMessageDetailed(
-              selectedAccount._id,
-              selectedMessage.recipient,
-              selectedMessage.text,
-            );
+            selectedAccount._id,
+            selectedMessage.recipient,
+            selectedMessage.text,
+          );
 
         selectedMessage.status = "sent";
         selectedMessage.sentAt = new Date();
@@ -395,7 +490,10 @@ class CampaignQueue {
         }
         selectedAccount.sentThisHour += 1;
         selectedAccount.hourWindowStart = new Date();
-        this.markAccountSent(selectedAccount._id);
+
+        // Per-account cooldown: set random delay for THIS account only.
+        // Other accounts remain unaffected and can send immediately.
+        this.markAccountSent(selectedAccount._id, antiBot);
 
         await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save()]);
       } catch (error) {

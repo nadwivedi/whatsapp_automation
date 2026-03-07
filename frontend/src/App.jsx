@@ -150,7 +150,7 @@ function App() {
     if (activeRoute === "settings") {
       return (
         <SettingsPage
-          key={`${app.settings?.perMobileDailyLimit || 20}-${app.settings?.perMobileHourlyLimit || 2}-${app.settings?.updatedAt || ""}`}
+          key={`${app.settings?.perMobileDailyLimit || 20}-${app.settings?.perMobileHourlyLimit || 2}-${app.settings?.antiBotEnabled || false}-${app.settings?.updatedAt || ""}`}
           settings={app.settings}
           accounts={app.accounts}
           busy={app.busy}
