@@ -1,18 +1,13 @@
 const mongoose = require("mongoose");
 
-const MESSAGE_STATUSES = ["pending", "sent", "failed"];
+const REPLY_DIRECTIONS = ["inbound", "outbound"];
+const REPLY_STATUSES = ["received", "sent", "failed"];
 
-const campaignMessageSchema = new mongoose.Schema(
+const replyMessageSchema = new mongoose.Schema(
   {
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
-      index: true,
-    },
-    campaign: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Campaign",
       required: true,
       index: true,
     },
@@ -22,19 +17,15 @@ const campaignMessageSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    recipient: {
+    contactNumber: {
       type: String,
       required: true,
       index: true,
     },
-    recipientMobileNumber: {
+    direction: {
       type: String,
-      default: null,
-      index: true,
-    },
-    senderMobileNumber: {
-      type: String,
-      default: null,
+      enum: REPLY_DIRECTIONS,
+      required: true,
       index: true,
     },
     text: {
@@ -44,14 +35,17 @@ const campaignMessageSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: MESSAGE_STATUSES,
-      default: "pending",
+      enum: REPLY_STATUSES,
+      required: true,
       index: true,
     },
-    tryCount: {
-      type: Number,
-      default: 0,
-      min: 0,
+    senderMobileNumber: {
+      type: String,
+      default: null,
+    },
+    recipientMobileNumber: {
+      type: String,
+      default: null,
     },
     providerMessageId: {
       type: String,
@@ -62,6 +56,11 @@ const campaignMessageSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    messageType: {
+      type: String,
+      default: "text",
+      maxlength: 32,
+    },
     error: {
       type: String,
       default: null,
@@ -71,13 +70,19 @@ const campaignMessageSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    readAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );
 
-campaignMessageSchema.index({ campaign: 1, status: 1, createdAt: 1 });
+replyMessageSchema.index({ owner: 1, contactNumber: 1, createdAt: 1 });
+replyMessageSchema.index({ owner: 1, direction: 1, readAt: 1 });
 
 module.exports = {
-  CampaignMessage: mongoose.model("CampaignMessage", campaignMessageSchema),
-  MESSAGE_STATUSES,
+  ReplyMessage: mongoose.model("ReplyMessage", replyMessageSchema),
+  REPLY_DIRECTIONS,
+  REPLY_STATUSES,
 };

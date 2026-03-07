@@ -354,8 +354,8 @@ class CampaignQueue {
       }
 
       try {
-        const providerMessageId = campaign.mediaData
-          ? await whatsappSessionManager.sendMediaMessage(
+        const delivery = campaign.mediaData
+          ? await whatsappSessionManager.sendMediaMessageDetailed(
               selectedAccount._id,
               selectedMessage.recipient,
               {
@@ -365,7 +365,7 @@ class CampaignQueue {
               },
               selectedMessage.text,
             )
-          : await whatsappSessionManager.sendTextMessage(
+          : await whatsappSessionManager.sendTextMessageDetailed(
               selectedAccount._id,
               selectedMessage.recipient,
               selectedMessage.text,
@@ -373,7 +373,8 @@ class CampaignQueue {
 
         selectedMessage.status = "sent";
         selectedMessage.sentAt = new Date();
-        selectedMessage.providerMessageId = providerMessageId;
+        selectedMessage.providerMessageId = delivery?.providerMessageId || null;
+        selectedMessage.providerChatId = delivery?.providerChatId || null;
         selectedMessage.senderMobileNumber = selectedAccount.phoneNumber || null;
         selectedMessage.recipientMobileNumber =
           selectedMessage.recipientMobileNumber || selectedMessage.recipient;

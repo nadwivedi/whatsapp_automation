@@ -1,6 +1,7 @@
 ﻿const QRCode = require("qrcode");
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const { WaAccount } = require("../models/WaAccount");
+const replyInboxService = require("./replyInboxService");
 const AUTH_DATA_PATH = process.env.AUTH_DATA_PATH || process.env.WHATSAPP_AUTH_DIR || ".wwebjs_auth";
 
 class WhatsappSessionManager {
@@ -152,6 +153,42 @@ class WhatsappSessionManager {
       });
     });
 
+    client.on("message", async (message) => {
+      try {
+        if (!message || message.fromMe) {
+          return;
+        }
+
+        const fromRaw = String(message.from || "");
+        const fromNumber = await this.resolveInboundSenderNumber(message, fromRaw);
+        if (!fromNumber && !fromRaw) {
+          return;
+        }
+
+        const inferredTo =
+          this.normalizeRecipient(String(message.to || "")) ||
+          this.normalizeRecipient(String(client.info?.wid?._serialized || "")) ||
+          account.phoneNumber ||
+          null;
+
+        await replyInboxService.recordInboundMessage({
+          ownerId: account.owner,
+          accountId: account._id,
+          fromNumber,
+          providerChatId: fromRaw || null,
+          toNumber: inferredTo,
+          text: typeof message.body === "string" ? message.body : "",
+          providerMessageId: message.id?._serialized || null,
+          messageType: message.type || "text",
+          sentAt: Number.isFinite(Number(message.timestamp))
+            ? new Date(Number(message.timestamp) * 1000)
+            : new Date(),
+        });
+      } catch (_error) {
+        // Ignore inbound persistence errors to avoid breaking session events.
+      }
+    });
+
     this.clients.set(mapKey, client);
     await this.updateAccount(account._id, {
       status: "initializing",
@@ -206,6 +243,54 @@ class WhatsappSessionManager {
     return recipient.replace(/[^\d]/g, "");
   }
 
+  extractUserFromChatId(chatId) {
+    const raw = String(chatId || "");
+    if (!raw.toLowerCase().endsWith("@c.us")) {
+      return "";
+    }
+    return this.normalizeRecipient(raw.split("@")[0] || "");
+  }
+
+  async resolveInboundSenderNumber(message, fromRaw) {
+    const chatId = String(fromRaw || "").toLowerCase();
+    if (
+      chatId.endsWith("@g.us") ||
+      chatId.endsWith("@broadcast") ||
+      chatId.endsWith("@newsletter")
+    ) {
+      return "";
+    }
+
+    const directNumber = this.extractUserFromChatId(fromRaw);
+    if (directNumber) {
+      return directNumber;
+    }
+
+    try {
+      const contact = await message.getContact();
+      const contactNumber =
+        this.normalizeRecipient(String(contact?.number || "")) ||
+        this.extractUserFromChatId(contact?.id?._serialized || "") ||
+        this.extractUserFromChatId(`${contact?.id?.user || ""}@${contact?.id?.server || ""}`);
+      if (contactNumber) {
+        return contactNumber;
+      }
+    } catch (_error) {
+      // Ignore contact resolution errors.
+    }
+
+    try {
+      const chat = await message.getChat();
+      return (
+        this.extractUserFromChatId(chat?.id?._serialized || "") ||
+        this.extractUserFromChatId(`${chat?.id?.user || ""}@${chat?.id?.server || ""}`) ||
+        ""
+      );
+    } catch (_error) {
+      return "";
+    }
+  }
+
   async resolveRecipientChatId(client, normalized) {
     const candidates = [normalized, `+${normalized}`];
     for (const candidate of candidates) {
@@ -226,7 +311,7 @@ class WhatsappSessionManager {
     return `${normalized}@c.us`;
   }
 
-  async sendTextMessage(accountId, recipient, text) {
+  async sendTextMessageDetailed(accountId, recipient, text) {
     const client = this.getClient(accountId);
     if (!client) {
       throw new Error("WhatsApp session is not active for this account.");
@@ -240,7 +325,10 @@ class WhatsappSessionManager {
     try {
       const chatId = await this.resolveRecipientChatId(client, normalized);
       const result = await client.sendMessage(chatId, text);
-      return result?.id?._serialized || null;
+      return {
+        providerMessageId: result?.id?._serialized || null,
+        providerChatId: chatId || null,
+      };
     } catch (error) {
       if (this.isRecoverableProtocolError(error)) {
         await this.resetClient(
@@ -263,6 +351,11 @@ class WhatsappSessionManager {
     }
   }
 
+  async sendTextMessage(accountId, recipient, text) {
+    const result = await this.sendTextMessageDetailed(accountId, recipient, text);
+    return result?.providerMessageId || null;
+  }
+
   parseMediaDataUrl(mediaData, fallbackMime = "application/octet-stream") {
     if (typeof mediaData !== "string") {
       throw new Error("Media payload is invalid.");
@@ -279,7 +372,7 @@ class WhatsappSessionManager {
     };
   }
 
-  async sendMediaMessage(accountId, recipient, media, caption = "") {
+  async sendMediaMessageDetailed(accountId, recipient, media, caption = "") {
     const client = this.getClient(accountId);
     if (!client) {
       throw new Error("WhatsApp session is not active for this account.");
@@ -303,7 +396,10 @@ class WhatsappSessionManager {
       const result = await client.sendMessage(chatId, messageMedia, {
         caption: caption || undefined,
       });
-      return result?.id?._serialized || null;
+      return {
+        providerMessageId: result?.id?._serialized || null,
+        providerChatId: chatId || null,
+      };
     } catch (error) {
       if (this.isRecoverableProtocolError(error)) {
         await this.resetClient(
@@ -324,6 +420,11 @@ class WhatsappSessionManager {
       }
       throw error;
     }
+  }
+
+  async sendMediaMessage(accountId, recipient, media, caption = "") {
+    const result = await this.sendMediaMessageDetailed(accountId, recipient, media, caption);
+    return result?.providerMessageId || null;
   }
 
   async restoreActiveSessions() {

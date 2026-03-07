@@ -133,9 +133,16 @@ function App() {
     if (activeRoute === "messages") {
       return (
         <MessagesPage
-          allMessagesLoading={app.allMessagesLoading}
-          allMessages={app.allMessages}
-          loadAllMessages={app.loadAllMessages}
+          accounts={app.accounts}
+          conversations={app.conversations}
+          conversationsLoading={app.conversationsLoading}
+          conversationMessages={app.conversationMessages}
+          conversationMessagesLoading={app.conversationMessagesLoading}
+          activeConversationNumber={app.activeConversationNumber}
+          sendingReply={app.sendingReply}
+          loadConversations={app.loadConversations}
+          openConversation={app.openConversation}
+          sendReplyToActiveConversation={app.sendReplyToActiveConversation}
         />
       );
     }
@@ -175,7 +182,7 @@ function App() {
         activeRoute={activeRoute}
         onNavigate={navigate}
         logout={app.logout}
-        onMessagesRouteOpen={app.loadAllMessages}
+        onMessagesRouteOpen={app.openInbox}
       >
         {renderPage()}
       </AppShell>

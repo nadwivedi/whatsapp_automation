@@ -17,6 +17,7 @@
     "express": "^5.2.1",
     "mongoose": "^9.2.4",
     "qrcode": "^1.5.4",
-    "whatsapp-web.js": "^1.29.0"
+    "whatsapp-web.js": "^1.29.0",
+    "ws": "^8.19.0"
   }
 }

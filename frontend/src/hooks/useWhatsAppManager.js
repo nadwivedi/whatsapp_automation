@@ -34,6 +34,12 @@ import {
   getSettings as getSettingsApi,
   updateSettings as updateSettingsApi,
 } from "../api/settingsApi";
+import {
+  getConversationMessages as getConversationMessagesApi,
+  listConversations as listConversationsApi,
+  markConversationRead as markConversationReadApi,
+  sendConversationReply as sendConversationReplyApi,
+} from "../api/repliesApi";
 import { countRecipients } from "../utils/formatters";
 
 const DEFAULT_SETTINGS = {
@@ -68,6 +74,9 @@ export function useWhatsAppManager() {
   const [businesses, setBusinesses] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [allMessages, setAllMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [activeConversationNumber, setActiveConversationNumber] = useState("");
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [messages, setMessages] = useState([]);
 
@@ -75,6 +84,9 @@ export function useWhatsAppManager() {
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [allMessagesLoading, setAllMessagesLoading] = useState(false);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [conversationMessagesLoading, setConversationMessagesLoading] = useState(false);
+  const [sendingReply, setSendingReply] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState(null);
@@ -149,6 +161,9 @@ export function useWhatsAppManager() {
       setBusinesses([]);
       setCampaigns([]);
       setAllMessages([]);
+      setConversations([]);
+      setConversationMessages([]);
+      setActiveConversationNumber("");
       setSelectedCampaign(null);
       setMessages([]);
       setSettings(DEFAULT_SETTINGS);
@@ -282,7 +297,7 @@ export function useWhatsAppManager() {
   async function logout() {
     try {
       await logoutApi();
-    } catch (_error) {
+    } catch {
       // Session may already be missing/expired; keep local logout behavior.
     } finally {
       setToken("");
@@ -621,6 +636,128 @@ export function useWhatsAppManager() {
     }
   }
 
+  async function loadConversations({
+    preserveSelection = true,
+    silent = false,
+    preferredContactNumber = "",
+  } = {}) {
+    if (!token) return [];
+
+    if (!silent) {
+      setConversationsLoading(true);
+    }
+
+    try {
+      const payload = await listConversationsApi(token);
+      const nextConversations = payload.conversations || [];
+      setConversations(nextConversations);
+
+      const preferredSelection = String(preferredContactNumber || "").trim();
+      const existingActive =
+        preserveSelection &&
+        (preferredSelection || activeConversationNumber) &&
+        nextConversations.some(
+          (item) => item.contactNumber === (preferredSelection || activeConversationNumber),
+        )
+          ? (preferredSelection || activeConversationNumber)
+          : "";
+
+      const nextActive = existingActive || nextConversations[0]?.contactNumber || "";
+      setActiveConversationNumber(nextActive);
+      if (!nextActive) {
+        setConversationMessages([]);
+      }
+
+      return nextConversations;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return [];
+    } finally {
+      if (!silent) {
+        setConversationsLoading(false);
+      }
+    }
+  }
+
+  async function openConversation(contactNumber, { markRead = true, silent = false } = {}) {
+    if (!token || !contactNumber) return [];
+
+    setActiveConversationNumber(contactNumber);
+    if (!silent) {
+      setConversationMessagesLoading(true);
+    }
+    try {
+      const payload = await getConversationMessagesApi(token, contactNumber);
+      const nextMessages = payload.messages || [];
+      setConversationMessages(nextMessages);
+
+      if (markRead) {
+        await markConversationReadApi(token, contactNumber).catch(() => {});
+        await loadConversations({
+          preserveSelection: true,
+          silent: true,
+          preferredContactNumber: contactNumber,
+        });
+      }
+
+      return nextMessages;
+    } catch (error) {
+      setConversationMessages([]);
+      setNotice({ type: "error", text: error.message });
+      return [];
+    } finally {
+      if (!silent) {
+        setConversationMessagesLoading(false);
+      }
+    }
+  }
+
+  async function openInbox() {
+    const list = await loadConversations({ preserveSelection: true });
+    const target = activeConversationNumber || list[0]?.contactNumber || "";
+    if (target) {
+      await openConversation(target, { markRead: true });
+    }
+  }
+
+  async function sendReplyToActiveConversation(text, accountId = "") {
+    const contactNumber = activeConversationNumber;
+    const payloadText = String(text || "").trim();
+    if (!contactNumber) {
+      setNotice({ type: "error", text: "Select a conversation first." });
+      return false;
+    }
+    if (!payloadText) {
+      setNotice({ type: "error", text: "Reply message cannot be empty." });
+      return false;
+    }
+
+    setSendingReply(true);
+    try {
+      const requestPayload = {
+        text: payloadText,
+      };
+      if (accountId) {
+        requestPayload.accountId = accountId;
+      }
+
+      await sendConversationReplyApi(token, contactNumber, requestPayload);
+      await openConversation(contactNumber, { markRead: false });
+      await loadConversations({
+        preserveSelection: true,
+        silent: true,
+        preferredContactNumber: contactNumber,
+      });
+      setNotice({ type: "success", text: "Reply sent." });
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setSendingReply(false);
+    }
+  }
+
   async function deleteCampaign(campaign) {
     const yes = window.confirm(`Delete campaign "${campaign.title}"? This will also remove all its messages.`);
     if (!yes) return;
@@ -753,12 +890,18 @@ export function useWhatsAppManager() {
     businesses,
     campaigns,
     allMessages,
+    conversations,
+    conversationMessages,
+    activeConversationNumber,
     selectedCampaign,
     messages,
     booting,
     dashboardLoading,
     messagesLoading,
     allMessagesLoading,
+    conversationsLoading,
+    conversationMessagesLoading,
+    sendingReply,
     refreshing,
     busy,
     notice,
@@ -806,5 +949,9 @@ export function useWhatsAppManager() {
     campaignAction,
     loadMessages,
     loadAllMessages,
+    loadConversations,
+    openConversation,
+    openInbox,
+    sendReplyToActiveConversation,
   };
 }
