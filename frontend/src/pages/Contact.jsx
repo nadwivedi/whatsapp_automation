@@ -332,10 +332,9 @@ function Contact({
                 <p className="text-[11px] text-slate-600">Showing {filteredContacts.length} of {contacts.length}</p>
                 <button type="button" className="rounded-md bg-cyan-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-cyan-700" onClick={() => setShowAddPopup(true)}>Add Contact</button>
                 <button type="button" className="btn-dark" onClick={() => { setShowBulkPopup(true); setBulkStatus(""); setExcelPreview(null); setExcelPasteText(""); if (!bulkDefaultCategory && contactCategories.length) setBulkDefaultCategory(contactCategories[0]._id); }}>Bulk Insert</button>
-                <button className="btn-dark" onClick={refreshAll} disabled={refreshing}>{refreshing ? "Refreshing..." : "Refresh"}</button>
               </div>
             </div>
-            <div className="mt-3 grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-3 grid gap-1.5 sm:gap-2 md:grid-cols-2 xl:grid-cols-5">
               <input className="input input-search-strong xl:col-span-2" placeholder="Search by name or category" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               <select className="input text-[11px]" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
                 <option value="">All categories</option>
@@ -345,12 +344,12 @@ function Contact({
                 <option value="">All states</option>
                 {stateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 <select className="input text-[11px]" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)}>
                   <option value="">All districts</option>
                   {districtOptions.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
-                <button type="button" className="btn-dark whitespace-nowrap" onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterState(""); setFilterDistrict(""); }}>Clear</button>
+                <button type="button" className="whitespace-nowrap rounded-md bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700 hover:bg-amber-200" onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterState(""); setFilterDistrict(""); }}>Clear</button>
               </div>
             </div>
           </div>
