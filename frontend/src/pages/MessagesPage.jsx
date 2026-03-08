@@ -311,7 +311,7 @@ function MessagesPage({
         )}
 
         {showChatPanel && (
-          <div className="flex-1 flex flex-col bg-[#e5ded8]">
+          <div className="flex-1 min-w-0 flex flex-col bg-[#e5ded8]">
             {isMobile && mobileChatOpen && (
               <div className="bg-[#f0f2f5] px-2 py-2 flex items-center gap-2">
                 <button type="button" onClick={() => setMobileChatOpen(false)} className="p-2 rounded-full hover:bg-gray-200">
@@ -409,7 +409,7 @@ function MessagesPage({
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-4 relative" style={{
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 relative" style={{
               backgroundColor: '#e5ded8',
               backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 30m-25 0a25 25 0 1 0 50 0a25 25 0 1 0-50 0' fill='none' stroke='%23c8ccc4' stroke-width='1'/%3E%3C/svg%3E")`,
               backgroundSize: '30px 30px'
@@ -434,25 +434,30 @@ function MessagesPage({
                   <p className="text-gray-500 text-sm">No messages yet. Start the conversation!</p>
                 </div>
               ) : (
-                <div className="space-y-1 pb-2">
+                <div className="space-y-1 pb-2 px-1 sm:px-0">
                   {conversationMessages.map((message) => {
                     const isInbound = message.direction === "inbound";
                     const { date, time } = formatDateTime(message.messageAt || message.sentAt || message.createdAt);
                     return (
-                      <div key={`${message.source}-${message._id}`} className={`flex ${isInbound ? "justify-start" : "justify-end"}`}>
-                        <div className={`max-w-[70%] rounded-lg px-3 py-2 shadow-sm ${
+                      <div
+                        key={`${message.source}-${message._id}`}
+                        className={`flex ${isInbound ? "justify-start pr-8 sm:pr-0" : "justify-end pl-8 sm:pl-0"}`}
+                      >
+                        <div className={`w-fit max-w-[75%] sm:max-w-[70%] rounded-lg px-3 py-2 shadow-sm ${
                           isInbound
                             ? "bg-white text-gray-900 rounded-tl-none"
                             : message.status === "failed"
                               ? "bg-[#ffebee] text-red-800 rounded-tr-none"
                               : "bg-[#d9fdd3] text-gray-900 rounded-tr-none"
                         }`}>
-                          <div className="whitespace-pre-wrap break-words text-sm">{message.text || "(No text)"}</div>
+                          <div className="whitespace-pre-wrap break-all sm:break-words text-[13px] sm:text-sm">
+                            {message.text || "(No text)"}
+                          </div>
                           <div className="flex items-center justify-end gap-1 mt-1">
-                            <span className="text-[10px] text-gray-500">{date}</span>
-                            <span className="text-[10px] text-gray-500">{time}</span>
+                            <span className="text-[9px] sm:text-[10px] text-gray-500">{date}</span>
+                            <span className="text-[9px] sm:text-[10px] text-gray-500">{time}</span>
                             {!isInbound && (
-                              <span className="text-[10px]">
+                              <span className="text-[9px] sm:text-[10px]">
                                 {message.status === "sent" && (
                                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#667781" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <polyline points="20 6 9 17 4 12"/>
