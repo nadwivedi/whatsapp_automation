@@ -286,25 +286,12 @@ function Contact({
 
   return (
     <section className="space-y-4 sm:space-y-6">
-      <header className="glass-panel-dark flex flex-wrap items-start sm:items-center justify-between gap-2 rounded-2xl px-4 py-4 sm:px-5">
-        <div>
-          <p className="font-heading text-xs uppercase tracking-[0.22em] text-slate-500">Directory</p>
-          <h1 className="font-heading text-2xl font-bold text-slate-900 sm:text-3xl">contacts</h1>
-          <p className="mt-1 text-xs text-slate-600 sm:text-sm">Store Contact records and assign each one to a category.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn-cyan" onClick={() => setShowAddPopup(true)}>Add Contact</button>
-          <button type="button" className="btn-dark" onClick={() => { setShowBulkPopup(true); setBulkStatus(""); setExcelPreview(null); setExcelPasteText(""); if (!bulkDefaultCategory && contactCategories.length) setBulkDefaultCategory(contactCategories[0]._id); }}>Bulk Insert</button>
-          <button className="btn-dark" onClick={refreshAll} disabled={refreshing}>{refreshing ? "Refreshing..." : "Refresh"}</button>
-        </div>
-      </header>
-
       <div className="grid gap-4 xl:grid-cols-[350px_minmax(0,1fr)] xl:items-stretch">
         <aside className="glass-panel rounded-2xl p-4 sm:p-5 xl:h-full flex flex-col">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">Partition 1</p>
-              <h2 className="font-heading text-lg font-semibold text-slate-900">Business Category</h2>
+              <p className="font-heading text-[10px] uppercase tracking-[0.2em] text-slate-500">Partition 1</p>
+              <h2 className="font-heading text-base font-semibold text-slate-900">Business Category</h2>
               <p className="mt-1 text-xs text-slate-600">See all categories and edit them here.</p>
             </div>
             <button type="button" className="btn-cyan" onClick={openCreateCategory}>Add</button>
@@ -340,10 +327,15 @@ function Contact({
           <div className="glass-panel rounded-2xl p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">Partition 2</p>
-                <h2 className="font-heading text-lg font-semibold text-slate-900">Contacts</h2>
+                <p className="font-heading text-[10px] uppercase tracking-[0.2em] text-slate-500">Partition 2</p>
+                <h2 className="font-heading text-base font-semibold text-slate-900">Contacts</h2>
               </div>
-              <p className="text-xs text-slate-600">Showing {filteredContacts.length} of {contacts.length}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] text-slate-600">Showing {filteredContacts.length} of {contacts.length}</p>
+                <button type="button" className="btn-cyan" onClick={() => setShowAddPopup(true)}>Add Contact</button>
+                <button type="button" className="btn-dark" onClick={() => { setShowBulkPopup(true); setBulkStatus(""); setExcelPreview(null); setExcelPasteText(""); if (!bulkDefaultCategory && contactCategories.length) setBulkDefaultCategory(contactCategories[0]._id); }}>Bulk Insert</button>
+                <button className="btn-dark" onClick={refreshAll} disabled={refreshing}>{refreshing ? "Refreshing..." : "Refresh"}</button>
+              </div>
             </div>
             <div className="mt-3 grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
               <input className="input input-search-strong xl:col-span-2" placeholder="Search by name or category" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
@@ -367,7 +359,7 @@ function Contact({
 
           <div className="glass-panel overflow-hidden rounded-2xl p-0 flex-1 min-h-0">
             <div className="overflow-auto h-full">
-              <table className="min-w-[1040px] w-full border-collapse text-xs sm:text-sm">
+              <table className="min-w-[1040px] w-full border-collapse text-xs">
                 <thead className="bg-slate-100/80 text-left text-slate-700">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Name</th>
