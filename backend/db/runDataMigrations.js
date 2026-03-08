@@ -14,8 +14,12 @@ async function migrateContactsCollection(db, names) {
   const contacts = db.collection("contacts");
 
   await contacts.updateMany(
-    { businessName: { $exists: true } },
-    { $rename: { businessName: "contactName" } },
+    { businessName: { $exists: true }, name: { $exists: false } },
+    { $rename: { businessName: "name" } },
+  );
+  await contacts.updateMany(
+    { contactName: { $exists: true }, name: { $exists: false } },
+    { $rename: { contactName: "name" } },
   );
   await contacts.updateMany(
     { businessCategory: { $exists: true } },
@@ -23,14 +27,14 @@ async function migrateContactsCollection(db, names) {
   );
 
   const indexes = await contacts.indexes();
-  const dropCandidates = ["userId_1_businessName_1_mobile_1", "businessCategory_1"];
+  const dropCandidates = ["userId_1_businessName_1_mobile_1", "userId_1_contactName_1_mobile_1", "businessCategory_1"];
   for (const indexName of dropCandidates) {
     if (indexes.some((index) => index.name === indexName)) {
       await contacts.dropIndex(indexName);
     }
   }
 
-  await contacts.createIndex({ userId: 1, contactName: 1, mobile: 1 });
+  await contacts.createIndex({ userId: 1, name: 1, mobile: 1 });
   await contacts.createIndex({ contactCategory: 1 });
 }
 

@@ -56,11 +56,10 @@ function parseBulkItems(rawJson) {
 }
 
 const HEADER_MAP = {
-  contactName: "contactName", "Contact name": "contactName", "Contact_name": "contactName", name: "contactName",
+  contactName: "name", "Contact name": "name", "Contact_name": "name", name: "name",
   mobile: "mobile", phone: "mobile", phonenumber: "mobile", "phone number": "mobile", "mobile number": "mobile", "mobile no": "mobile", "phone no": "mobile",
   email: "email", "email address": "email",
   state: "state", district: "district", city: "district",
-  pincode: "pincode", "pin code": "pincode", zip: "pincode", "postal code": "pincode", "zip code": "pincode",
   address: "address", "full address": "address", fulladdress: "address",
   contactCategory: "contactCategory", "Contact category": "contactCategory", category: "contactCategory", categoryname: "contactCategory", "category name": "contactCategory",
 };
@@ -99,25 +98,24 @@ function parseTsvToItems(text) {
 }
 
 const SAMPLE_DATA = [
-  { contactName: "ABC Traders", mobile: "+919876543210", email: "abc@email.com", state: "Maharashtra", district: "Mumbai", pincode: "400001", address: "123 Main Street" },
-  { contactName: "XYZ Services", mobile: "+919876543211", email: "", state: "Delhi", district: "New Delhi", pincode: "110001", address: "456 Market Road" },
-  { contactName: "PQR Industries", mobile: "+919876543212", email: "pqr@mail.com", state: "Gujarat", district: "Surat", pincode: "395001", address: "" },
+  { name: "ABC Traders", mobile: "+919876543210", email: "abc@email.com", state: "Maharashtra", district: "Mumbai", address: "123 Main Street" },
+  { name: "XYZ Services", mobile: "+919876543211", email: "", state: "Delhi", district: "New Delhi", address: "456 Market Road" },
+  { name: "PQR Industries", mobile: "+919876543212", email: "pqr@mail.com", state: "Gujarat", district: "Surat", address: "" },
 ];
 
 const COLUMNS = [
-  { key: "contactName", label: "Contact Name", required: true },
+  { key: "name", label: "Name", required: true },
   { key: "mobile", label: "Mobile", required: true },
   { key: "email", label: "Email", required: false },
   { key: "state", label: "State", required: false },
   { key: "district", label: "District", required: false },
-  { key: "pincode", label: "Pincode", required: false },
   { key: "address", label: "Address", required: false },
 ];
 
 // Map camelCase keys to readable labels for preview tables
 const DISPLAY_LABELS = {
-  contactName: "Contact Name", mobile: "Mobile", email: "Email",
-  state: "State", district: "District", pincode: "Pincode",
+  name: "Name", mobile: "Mobile", email: "Email",
+  state: "State", district: "District",
   address: "Address", contactCategory: "Category",
 };
 const toLabel = (key) => DISPLAY_LABELS[key] || key;
@@ -134,8 +132,8 @@ function Contact({
   const [editingCategory, setEditingCategory] = useState(null);
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
   const [form, setForm] = useState({
-    contactName: "", mobile: "", email: "", state: "",
-    district: "", pincode: "", address: "", contactCategory: "",
+    name: "", mobile: "", email: "", state: "",
+    district: "", address: "", contactCategory: "",
   });
   const [bulkDefaultCategory, setBulkDefaultCategory] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
@@ -167,7 +165,7 @@ function Contact({
   const filteredContacts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return contacts.filter((item) => {
-      const matchSearch = !q || String(item.contactName || "").toLowerCase().includes(q) || String(item.contactCategory?.name || "").toLowerCase().includes(q);
+      const matchSearch = !q || String(item.name || item.contactName || "").toLowerCase().includes(q) || String(item.contactCategory?.name || "").toLowerCase().includes(q);
       const matchCat = !filterCategory || item.contactCategory?._id === filterCategory;
       const matchState = !filterState || String(item.state || "").trim().toLowerCase() === filterState.toLowerCase();
       const matchDist = !filterDistrict || String(item.district || "").trim().toLowerCase() === filterDistrict.toLowerCase();
@@ -178,13 +176,13 @@ function Contact({
   async function onSubmit(e) {
     e.preventDefault();
     const ok = await createContact({
-      contactName: form.contactName.trim(), mobile: form.mobile.trim(),
+      name: form.name.trim(), mobile: form.mobile.trim(),
       email: form.email.trim(), state: form.state.trim(),
-      district: form.district.trim(), pincode: form.pincode.trim(),
+      district: form.district.trim(),
       address: form.address.trim(), contactCategory: form.contactCategory,
     });
     if (ok) {
-      setForm({ contactName: "", mobile: "", email: "", state: "", district: "", pincode: "", address: "", contactCategory: "" });
+      setForm({ name: "", mobile: "", email: "", state: "", district: "", address: "", contactCategory: "" });
       setShowAddPopup(false);
     }
   }
@@ -348,7 +346,7 @@ function Contact({
               <p className="text-xs text-slate-600">Showing {filteredContacts.length} of {contacts.length}</p>
             </div>
             <div className="mt-3 grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <input className="input input-search-strong xl:col-span-2" placeholder="Search by Contact name or category" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <input className="input input-search-strong xl:col-span-2" placeholder="Search by name or category" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               <select className="input" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
                 <option value="">All categories</option>
                 {contactCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
@@ -372,12 +370,11 @@ function Contact({
               <table className="min-w-[1040px] w-full border-collapse text-xs sm:text-sm">
                 <thead className="bg-slate-100/80 text-left text-slate-700">
                   <tr>
-                    <th className="px-3 py-2 font-semibold">Contact Name</th>
+                    <th className="px-3 py-2 font-semibold">Name</th>
                     <th className="px-3 py-2 font-semibold">Mobile</th>
                     <th className="px-3 py-2 font-semibold">Category</th>
                     <th className="px-3 py-2 font-semibold">State</th>
                     <th className="px-3 py-2 font-semibold">District</th>
-                    <th className="px-3 py-2 font-semibold">Pincode</th>
                     <th className="px-3 py-2 font-semibold">Address</th>
                     <th className="px-3 py-2 font-semibold">Email</th>
                     <th className="px-3 py-2 font-semibold">Action</th>
@@ -386,12 +383,11 @@ function Contact({
                 <tbody>
                   {filteredContacts.map((item) => (
                     <tr key={item._id} className="border-t border-slate-200/80 align-top text-slate-700">
-                      <td className="px-3 py-2 font-medium text-slate-900">{item.contactName || "--"}</td>
+                      <td className="px-3 py-2 font-medium text-slate-900">{item.name || item.contactName || "--"}</td>
                       <td className="px-3 py-2">{item.mobile || "--"}</td>
                       <td className="px-3 py-2">{item.contactCategory?.name || "--"}</td>
                       <td className="px-3 py-2">{item.state || "--"}</td>
                       <td className="px-3 py-2">{item.district || "--"}</td>
-                      <td className="px-3 py-2">{item.pincode || "--"}</td>
                       <td className="max-w-[20rem] px-3 py-2 break-words">{item.address || "--"}</td>
                       <td className="px-3 py-2">{item.email || "--"}</td>
                       <td className="px-3 py-2">
@@ -402,10 +398,10 @@ function Contact({
                     </tr>
                   ))}
                   {!filteredContacts.length && !dashboardLoading && contacts.length > 0 && (
-                    <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={9}>No contacts match the current search/filters.</td></tr>
+                    <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>No contacts match the current search/filters.</td></tr>
                   )}
                   {!contacts.length && !dashboardLoading && (
-                    <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={9}>No contacts saved yet.</td></tr>
+                    <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>No contacts saved yet.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -475,12 +471,12 @@ function Contact({
 
             <form className="p-5" onSubmit={onSubmit}>
               <div className="grid gap-4 sm:grid-cols-2">
-                {/* Contact Name */}
+                {/* Name */}
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Contact Name <span className="text-rose-500">*</span>
+                    Name <span className="text-rose-500">*</span>
                   </label>
-                  <input className="input" placeholder="e.g. ABC Traders" value={form.contactName} onChange={F("contactName")} required />
+                  <input className="input" placeholder="e.g. ABC Traders" value={form.name} onChange={F("name")} required />
                 </div>
                 {/* Mobile */}
                 <div>
@@ -513,11 +509,6 @@ function Contact({
                 <div>
                   <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">District</label>
                   <input className="input" placeholder="e.g. Mumbai" value={form.district} onChange={F("district")} />
-                </div>
-                {/* Pincode */}
-                <div>
-                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Pincode</label>
-                  <input className="input" placeholder="e.g. 400001" value={form.pincode} onChange={F("pincode")} />
                 </div>
                 {/* Address */}
                 <div>
@@ -739,7 +730,7 @@ function Contact({
                     <p className="text-[11px] text-slate-600">Or paste JSON below:</p>
                     <textarea
                       className="input min-h-36 font-mono text-[11px]"
-                      placeholder={'[\n  { "contactName": "ABC Traders", "mobile": "+919876543210" },\n  { "contactName": "XYZ Services", "mobile": "+919876543211" }\n]'}
+                      placeholder={'[\n  { "name": "ABC Traders", "mobile": "+919876543210" },\n  { "name": "XYZ Services", "mobile": "+919876543211" }\n]'}
                       value={bulkJsonText}
                       onChange={(e) => setBulkJsonText(e.target.value)}
                     />

@@ -8,7 +8,7 @@ const contactSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    contactName: {
+    name: {
       type: String,
       required: true,
       trim: true,
@@ -42,17 +42,6 @@ const contactSchema = new mongoose.Schema(
       lowercase: true,
       maxlength: 120,
     },
-    pincode: {
-      type: Number,
-      default: null,
-      validate: {
-        validator(value) {
-          if (value == null) return true;
-          return Number.isInteger(value) && value >= 100000 && value <= 999999;
-        },
-        message: "pincode must be a 6-digit number.",
-      },
-    },
     address: {
       type: String,
       default: "",
@@ -69,7 +58,7 @@ const contactSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-contactSchema.index({ userId: 1, contactName: 1, mobile: 1 });
+contactSchema.index({ userId: 1, name: 1, mobile: 1 });
 
 module.exports = {
   Contact: mongoose.model("Contact", contactSchema),

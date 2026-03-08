@@ -924,7 +924,7 @@ export function useWhatsAppManager() {
   }
 
   async function deleteContact(contact) {
-    const yes = window.confirm(`Delete contact "${contact.contactName || contact.businessName}"?`);
+    const yes = window.confirm(`Delete contact "${contact.name || contact.contactName || contact.businessName}"?`);
     if (!yes) return false;
 
     setBusy(`delete-contact-${contact._id}`);

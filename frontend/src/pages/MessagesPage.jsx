@@ -221,6 +221,7 @@ function MessagesPage({
   }
 
   function formatContactName(item) {
+    if (item.name) return item.name;
     if (item.contactName) return item.contactName;
     return item.contactNumber;
   }

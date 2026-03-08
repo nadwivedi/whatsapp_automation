@@ -17,19 +17,6 @@ function normalizeEmail(raw) {
   return value ? value.toLowerCase() : null;
 }
 
-function normalizePincode(raw) {
-  if (raw == null) return null;
-  if (typeof raw === "number") {
-    if (!Number.isFinite(raw)) return Number.NaN;
-    return Math.trunc(raw);
-  }
-
-  const text = normalizeText(raw);
-  if (!text) return null;
-  if (!/^\d+$/.test(text)) return Number.NaN;
-  return Number(text);
-}
-
 function isValidMobile(mobile) {
   return /^\+?\d{8,15}$/.test(mobile);
 }
@@ -52,12 +39,11 @@ function pickCategoryInput(input) {
 }
 
 function normalizeContactPayload(input = {}) {
-  const contactName = normalizeText(input.contactName || input.businessName || input.name);
+  const name = normalizeText(input.name || input.contactName || input.businessName);
   const mobile = normalizeMobile(input.mobile || input.phoneNumber || input.phone);
   const email = normalizeEmail(input.email);
   const state = normalizeText(input.state).toLowerCase();
   const district = normalizeText(input.district).toLowerCase();
-  const pincode = normalizePincode(input.pincode || input.pinCode || input.zip || input.postalCode);
   const address = normalizeText(input.address || input.fullAddress);
   const categoryInput = pickCategoryInput(
     input.contactCategory ||
@@ -71,12 +57,11 @@ function normalizeContactPayload(input = {}) {
   );
 
   return {
-    contactName,
+    name,
     mobile,
     email,
     state,
     district,
-    pincode,
     address,
     categoryInput,
   };
@@ -85,10 +70,10 @@ function normalizeContactPayload(input = {}) {
 function validateContactPayload(payload) {
   const errors = [];
 
-  if (!payload.contactName || payload.contactName.length < 2) {
+  if (!payload.name || payload.name.length < 2) {
     errors.push({
-      field: "contactName",
-      message: "contactName is required and must be at least 2 characters.",
+      field: "name",
+      message: "name is required and must be at least 2 characters.",
     });
   }
 
@@ -103,16 +88,6 @@ function validateContactPayload(payload) {
     errors.push({
       field: "email",
       message: "email must be a valid email address.",
-    });
-  }
-
-  if (
-    payload.pincode != null &&
-    (!Number.isInteger(payload.pincode) || payload.pincode < 100000 || payload.pincode > 999999)
-  ) {
-    errors.push({
-      field: "pincode",
-      message: "pincode must be a 6-digit number.",
     });
   }
 
@@ -178,12 +153,11 @@ async function createContact(req, res) {
 
   const contact = await Contact.create({
     userId: req.user._id,
-    contactName: payload.contactName,
+    name: payload.name,
     mobile: payload.mobile,
     email: payload.email,
     state: payload.state,
     district: payload.district,
-    pincode: payload.pincode,
     address: payload.address,
     contactCategory: category._id,
   });
@@ -270,12 +244,11 @@ async function bulkInsertContacts(req, res) {
 
     docs.push({
       userId: req.user._id,
-      contactName: payload.contactName,
+      name: payload.name,
       mobile: payload.mobile,
       email: payload.email,
       state: payload.state,
       district: payload.district,
-      pincode: payload.pincode,
       address: payload.address,
       contactCategory: category._id,
     });
