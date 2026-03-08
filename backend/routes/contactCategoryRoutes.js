@@ -4,7 +4,7 @@ const {
   createContactCategory,
   updateContactCategory,
   deleteContactCategory,
-} = require("../controllers/businessCategoryController");
+} = require("../controllers/contactCategoryController");
 
 const router = express.Router();
 

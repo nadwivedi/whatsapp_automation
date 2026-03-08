@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const { Contact } = require("../models/Business");
-const { ContactCategory } = require("../models/BusinessCategory");
+const { Contact } = require("../models/contact");
+const { ContactCategory } = require("../models/contactCategory");
 
 function normalizeText(raw, fallback = "") {
   if (raw == null) return fallback;
@@ -9,8 +9,7 @@ function normalizeText(raw, fallback = "") {
 }
 
 function normalizeMobile(raw) {
-  const cleaned = normalizeText(raw).replace(/[^\d+]/g, "");
-  return cleaned;
+  return normalizeText(raw).replace(/[^\d+]/g, "");
 }
 
 function normalizeEmail(raw) {
@@ -43,13 +42,7 @@ function isValidEmail(email) {
 function pickCategoryInput(input) {
   if (input == null) return "";
   if (typeof input === "object" && !Array.isArray(input)) {
-    const byId =
-      input.contactCategoryId ||
-      input.contactCategory ||
-      input.businessCategoryId ||
-      input.businessCategory ||
-      input._id ||
-      input.id;
+    const byId = input.contactCategoryId || input.contactCategory || input._id || input.id;
     if (byId) return normalizeText(byId);
     const byName = input.categoryName || input.name;
     if (byName) return normalizeText(byName);
@@ -69,12 +62,12 @@ function normalizeContactPayload(input = {}) {
   const categoryInput = pickCategoryInput(
     input.contactCategory ||
       input.contactCategoryId ||
-    input.businessCategory ||
+      input.businessCategory ||
       input.businessCategoryId ||
       input.category ||
       input.categoryName ||
-      input.businessCategoryName ||
-      input.contactCategoryName,
+      input.contactCategoryName ||
+      input.businessCategoryName,
   );
 
   return {
@@ -134,9 +127,7 @@ function validateContactPayload(payload) {
 }
 
 async function buildCategoryLookup(userId) {
-  const categories = await ContactCategory.find({
-    userId,
-  }).select("_id name nameKey");
+  const categories = await ContactCategory.find({ userId }).select("_id name nameKey");
 
   const byId = new Map();
   const byNameKey = new Map();
@@ -145,10 +136,7 @@ async function buildCategoryLookup(userId) {
     byNameKey.set(String(category.nameKey || "").toLowerCase(), category);
   }
 
-  return {
-    byId,
-    byNameKey,
-  };
+  return { byId, byNameKey };
 }
 
 function resolveCategoryFromLookup(categoryInput, lookup) {
@@ -167,14 +155,12 @@ function resolveCategoryFromLookup(categoryInput, lookup) {
 }
 
 async function listContacts(req, res) {
-  const contacts = await Contact.find({
-    userId: req.user._id,
-  })
+  const contacts = await Contact.find({ userId: req.user._id })
     .populate("contactCategory", "name")
     .sort({ createdAt: -1 })
     .limit(5000);
 
-  return res.json({ contacts, businesses: contacts });
+  return res.json({ contacts });
 }
 
 async function createContact(req, res) {
@@ -203,12 +189,12 @@ async function createContact(req, res) {
   });
 
   const hydrated = await Contact.findById(contact._id).populate("contactCategory", "name");
-  return res.status(201).json({ contact: hydrated, business: hydrated });
+  return res.status(201).json({ contact: hydrated });
 }
 
 async function deleteContact(req, res) {
   const contact = await Contact.findOneAndDelete({
-    _id: req.params.contactId || req.params.businessId,
+    _id: req.params.contactId,
     userId: req.user._id,
   });
 
@@ -216,7 +202,7 @@ async function deleteContact(req, res) {
     return res.status(404).json({ message: "Contact not found." });
   }
 
-  return res.json({ contact, business: contact });
+  return res.json({ contact });
 }
 
 async function bulkInsertContacts(req, res) {
@@ -249,6 +235,7 @@ async function bulkInsertContacts(req, res) {
 
   const docs = [];
   const errors = [];
+
   rawItems.forEach((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       errors.push({ index, message: "Each item must be an object." });
@@ -271,9 +258,7 @@ async function bulkInsertContacts(req, res) {
       return;
     }
 
-    const category =
-      resolveCategoryFromLookup(payload.categoryInput, lookup) ||
-      defaultCategory;
+    const category = resolveCategoryFromLookup(payload.categoryInput, lookup) || defaultCategory;
     if (!category) {
       errors.push({
         index,
@@ -306,7 +291,7 @@ async function bulkInsertContacts(req, res) {
 
   const inserted = await Contact.insertMany(docs);
   const insertedIds = inserted.map((doc) => doc._id);
-  const insertedContacts = await Contact.find({
+  const contacts = await Contact.find({
     _id: { $in: insertedIds },
     userId: req.user._id,
   })
@@ -315,8 +300,7 @@ async function bulkInsertContacts(req, res) {
 
   return res.status(201).json({
     insertedCount: inserted.length,
-    contacts: insertedContacts.slice(0, 100),
-    businesses: insertedContacts.slice(0, 100),
+    contacts: contacts.slice(0, 100),
     message:
       inserted.length > 100
         ? "Contacts inserted. Response includes first 100 records."
@@ -329,9 +313,4 @@ module.exports = {
   createContact,
   deleteContact,
   bulkInsertContacts,
-  // Backward-compatible export aliases.
-  listBusinesses: listContacts,
-  createBusiness: createContact,
-  deleteBusiness: deleteContact,
-  bulkInsertBusinesses: bulkInsertContacts,
 };

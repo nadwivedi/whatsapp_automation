@@ -7,8 +7,7 @@ import { getRouteKey } from "./router/routes";
 import DashboardPage from "./pages/DashboardPage";
 import SessionsPage from "./pages/SessionsPage";
 import TemplatesPage from "./pages/TemplatesPage";
-import BusinessCategoriesPage from "./pages/BusinessCategoriesPage";
-import BusinessesPage from "./pages/BusinessesPage";
+import ContactPage from "./pages/Contact";
 import CampaignsPage from "./pages/CampaignsPage";
 import MessagesPage from "./pages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -75,23 +74,9 @@ function App() {
       );
     }
 
-    if (activeRoute === "contactCategories") {
-      return (
-        <BusinessCategoriesPage
-          refreshing={app.refreshing}
-          refreshAll={app.refreshAll}
-          busy={app.busy}
-          contactCategories={app.contactCategories}
-          createContactCategory={app.createContactCategory}
-          deleteContactCategory={app.deleteContactCategory}
-          dashboardLoading={app.dashboardLoading}
-        />
-      );
-    }
-
     if (activeRoute === "contacts") {
       return (
-        <BusinessesPage
+        <ContactPage
           refreshing={app.refreshing}
           refreshAll={app.refreshAll}
           busy={app.busy}
@@ -100,6 +85,8 @@ function App() {
           createContact={app.createContact}
           bulkInsertContacts={app.bulkInsertContacts}
           deleteContact={app.deleteContact}
+          createContactCategory={app.createContactCategory}
+          deleteContactCategory={app.deleteContactCategory}
           dashboardLoading={app.dashboardLoading}
         />
       );

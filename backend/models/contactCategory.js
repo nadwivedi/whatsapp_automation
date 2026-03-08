@@ -46,10 +46,6 @@ contactCategorySchema.index(
   { unique: true },
 );
 
-const ContactCategory = mongoose.model("ContactCategory", contactCategorySchema);
-
 module.exports = {
-  ContactCategory,
-  // Backward-compatible export alias for legacy imports.
-  BusinessCategory: ContactCategory,
+  ContactCategory: mongoose.model("ContactCategory", contactCategorySchema),
 };

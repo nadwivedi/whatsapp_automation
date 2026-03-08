@@ -4,8 +4,7 @@ const {
   createContact,
   deleteContact,
   bulkInsertContacts,
-} = require("../controllers/businessController");
-
+} = require("../controllers/contactController");
 const router = express.Router();
 
 router.get("/", listContacts);

@@ -6,8 +6,8 @@ const accountRoutes = require("./routes/accountRoutes");
 const templateRoutes = require("./routes/templateRoutes");
 const campaignRoutes = require("./routes/campaignRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
-const businessCategoryRoutes = require("./routes/businessCategoryRoutes");
-const businessRoutes = require("./routes/businessRoutes");
+const contactCategoryRoutes = require("./routes/contactCategoryRoutes");
+const contactRoutes = require("./routes/contactRoutes");
 const replyRoutes = require("./routes/replyRoutes");
 
 const app = express();
@@ -57,10 +57,8 @@ app.use("/api/accounts", requireAuth, accountRoutes);
 app.use("/api/templates", requireAuth, templateRoutes);
 app.use("/api/campaigns", requireAuth, campaignRoutes);
 app.use("/api/settings", requireAuth, settingsRoutes);
-app.use("/api/contact-categories", requireAuth, businessCategoryRoutes);
-app.use("/api/contacts", requireAuth, businessRoutes);
-app.use("/api/business-categories", requireAuth, businessCategoryRoutes);
-app.use("/api/businesses", requireAuth, businessRoutes);
+app.use("/api/contact-categories", requireAuth, contactCategoryRoutes);
+app.use("/api/contacts", requireAuth, contactRoutes);
 app.use("/api/replies", requireAuth, replyRoutes);
 
 app.use((err, _req, res, _next) => {

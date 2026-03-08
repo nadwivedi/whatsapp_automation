@@ -1,5 +1,5 @@
-const { Contact } = require("../models/Business");
-const { ContactCategory } = require("../models/BusinessCategory");
+const { Contact } = require("../models/contact");
+const { ContactCategory } = require("../models/contactCategory");
 
 function normalizeName(raw) {
   return typeof raw === "string" ? raw.trim() : "";
@@ -106,9 +106,4 @@ module.exports = {
   createContactCategory,
   updateContactCategory,
   deleteContactCategory,
-  // Backward-compatible export aliases.
-  listBusinessCategories: listContactCategories,
-  createBusinessCategory: createContactCategory,
-  updateBusinessCategory: updateContactCategory,
-  deleteBusinessCategory: deleteContactCategory,
 };

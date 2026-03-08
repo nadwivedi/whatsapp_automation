@@ -71,10 +71,6 @@ const contactSchema = new mongoose.Schema(
 
 contactSchema.index({ userId: 1, contactName: 1, mobile: 1 });
 
-const Contact = mongoose.model("Contact", contactSchema);
-
 module.exports = {
-  Contact,
-  // Backward-compatible export alias for legacy imports.
-  Business: Contact,
+  Contact: mongoose.model("Contact", contactSchema),
 };
