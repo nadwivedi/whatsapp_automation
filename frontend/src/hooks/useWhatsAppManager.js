@@ -12,6 +12,7 @@ import {
 import { createTemplate as createTemplateApi, listTemplates, deleteTemplate as deleteTemplateApi } from "../api/templatesApi";
 import {
   createContactCategory as createContactCategoryApi,
+  updateContactCategory as updateContactCategoryApi,
   deleteContactCategory as deleteContactCategoryApi,
   listContactCategories,
 } from "../api/contactCategoriesApi";
@@ -871,6 +872,21 @@ export function useWhatsAppManager() {
     }
   }
 
+  async function updateContactCategory(categoryId, payload) {
+    setBusy(`update-contact-category-${categoryId}`);
+    try {
+      await updateContactCategoryApi(token, categoryId, payload);
+      setNotice({ type: "success", text: "Contact category updated." });
+      await refreshAll();
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function createContact(payload) {
     setBusy("create-contact");
     try {
@@ -983,6 +999,7 @@ export function useWhatsAppManager() {
     createTemplate,
     deleteTemplate,
     createContactCategory,
+    updateContactCategory,
     deleteContactCategory,
     createContact,
     bulkInsertContacts,

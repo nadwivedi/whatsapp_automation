@@ -86,6 +86,7 @@ function App() {
           bulkInsertContacts={app.bulkInsertContacts}
           deleteContact={app.deleteContact}
           createContactCategory={app.createContactCategory}
+          updateContactCategory={app.updateContactCategory}
           deleteContactCategory={app.deleteContactCategory}
           dashboardLoading={app.dashboardLoading}
         />

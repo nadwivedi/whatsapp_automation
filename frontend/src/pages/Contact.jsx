@@ -124,10 +124,15 @@ const toLabel = (key) => DISPLAY_LABELS[key] || key;
 
 function Contact({
   refreshing, refreshAll, busy, contactCategories, contacts,
-  createContact, bulkInsertContacts, deleteContact, dashboardLoading,
+  createContact, bulkInsertContacts, deleteContact,
+  createContactCategory, updateContactCategory, deleteContactCategory,
+  dashboardLoading,
 }) {
   const [showAddPopup, setShowAddPopup] = useState(false);
   const [showBulkPopup, setShowBulkPopup] = useState(false);
+  const [showCategoryPopup, setShowCategoryPopup] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
   const [form, setForm] = useState({
     contactName: "", mobile: "", email: "", state: "",
     district: "", pincode: "", address: "", contactCategory: "",
@@ -143,6 +148,15 @@ function Contact({
   const [filterCategory, setFilterCategory] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
+  const categoryUsage = useMemo(() => {
+    const usage = new Map();
+    for (const item of contacts) {
+      const key = item?.contactCategory?._id;
+      if (!key) continue;
+      usage.set(key, (usage.get(key) || 0) + 1);
+    }
+    return usage;
+  }, [contacts]);
 
   const stateOptions = useMemo(() => uniqueValues(contacts.map((b) => b.state)), [contacts]);
   const districtOptions = useMemo(() => {
@@ -172,6 +186,37 @@ function Contact({
     if (ok) {
       setForm({ contactName: "", mobile: "", email: "", state: "", district: "", pincode: "", address: "", contactCategory: "" });
       setShowAddPopup(false);
+    }
+  }
+
+  function openCreateCategory() {
+    setEditingCategory(null);
+    setCategoryForm({ name: "", description: "" });
+    setShowCategoryPopup(true);
+  }
+
+  function openEditCategory(category) {
+    setEditingCategory(category);
+    setCategoryForm({
+      name: category?.name || "",
+      description: category?.description || "",
+    });
+    setShowCategoryPopup(true);
+  }
+
+  async function onSubmitCategory(e) {
+    e.preventDefault();
+    const payload = {
+      name: categoryForm.name.trim(),
+      description: categoryForm.description.trim(),
+    };
+    const ok = editingCategory
+      ? await updateContactCategory(editingCategory._id, payload)
+      : await createContactCategory(payload);
+    if (ok) {
+      setShowCategoryPopup(false);
+      setEditingCategory(null);
+      setCategoryForm({ name: "", description: "" });
     }
   }
 
@@ -256,75 +301,153 @@ function Contact({
         </div>
       </header>
 
-      {/* Filters */}
-      <div className="glass-panel rounded-2xl p-4 sm:p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-heading text-lg font-semibold text-slate-900">Search and Filters</h2>
-          <p className="text-xs text-slate-600">Showing {filteredContacts.length} of {contacts.length}</p>
-        </div>
-        <div className="mt-3 grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <input className="input input-search-strong xl:col-span-2" placeholder="Search by Contact name or category" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-          <select className="input" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-            <option value="">All categories</option>
-            {contactCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-          </select>
-          <select className="input" value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterDistrict(""); }}>
-            <option value="">All states</option>
-            {stateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <div className="flex gap-2">
-            <select className="input" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)}>
-              <option value="">All districts</option>
-              {districtOptions.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-            <button type="button" className="btn-dark whitespace-nowrap" onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterState(""); setFilterDistrict(""); }}>Clear</button>
+      <div className="grid gap-4 xl:grid-cols-[350px_minmax(0,1fr)] xl:items-stretch">
+        <aside className="glass-panel rounded-2xl p-4 sm:p-5 xl:h-full flex flex-col">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">Partition 1</p>
+              <h2 className="font-heading text-lg font-semibold text-slate-900">Business Category</h2>
+              <p className="mt-1 text-xs text-slate-600">See all categories and edit them here.</p>
+            </div>
+            <button type="button" className="btn-cyan" onClick={openCreateCategory}>Add</button>
+          </div>
+
+          <div className="mt-4 space-y-2 pr-1 flex-1 min-h-0 overflow-auto">
+            {contactCategories.map((category) => (
+              <article key={category._id} className="rounded-xl border border-slate-200 bg-white/80 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-slate-900">{category.name}</p>
+                    <p className="text-[11px] text-slate-500">{categoryUsage.get(category._id) || 0} contacts</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" className="btn-dark" onClick={() => openEditCategory(category)} disabled={busy === `update-contact-category-${category._id}`}>Edit</button>
+                    <button type="button" className="btn-red" onClick={() => deleteContactCategory(category)} disabled={busy === `delete-contact-category-${category._id}`}>
+                      {busy === `delete-contact-category-${category._id}` ? "..." : "Delete"}
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-slate-600">{category.description || "No description."}</p>
+              </article>
+            ))}
+            {!contactCategories.length && !dashboardLoading && (
+              <p className="rounded-xl border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-500">
+                No categories yet.
+              </p>
+            )}
+          </div>
+        </aside>
+
+        <div className="space-y-4 xl:h-full flex flex-col min-h-0">
+          <div className="glass-panel rounded-2xl p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">Partition 2</p>
+                <h2 className="font-heading text-lg font-semibold text-slate-900">Contacts</h2>
+              </div>
+              <p className="text-xs text-slate-600">Showing {filteredContacts.length} of {contacts.length}</p>
+            </div>
+            <div className="mt-3 grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <input className="input input-search-strong xl:col-span-2" placeholder="Search by Contact name or category" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <select className="input" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                <option value="">All categories</option>
+                {contactCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+              </select>
+              <select className="input" value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterDistrict(""); }}>
+                <option value="">All states</option>
+                {stateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <div className="flex gap-2">
+                <select className="input" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)}>
+                  <option value="">All districts</option>
+                  {districtOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <button type="button" className="btn-dark whitespace-nowrap" onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterState(""); setFilterDistrict(""); }}>Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-panel overflow-hidden rounded-2xl p-0 flex-1 min-h-0">
+            <div className="overflow-auto h-full">
+              <table className="min-w-[1040px] w-full border-collapse text-xs sm:text-sm">
+                <thead className="bg-slate-100/80 text-left text-slate-700">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Contact Name</th>
+                    <th className="px-3 py-2 font-semibold">Mobile</th>
+                    <th className="px-3 py-2 font-semibold">Category</th>
+                    <th className="px-3 py-2 font-semibold">State</th>
+                    <th className="px-3 py-2 font-semibold">District</th>
+                    <th className="px-3 py-2 font-semibold">Pincode</th>
+                    <th className="px-3 py-2 font-semibold">Address</th>
+                    <th className="px-3 py-2 font-semibold">Email</th>
+                    <th className="px-3 py-2 font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredContacts.map((item) => (
+                    <tr key={item._id} className="border-t border-slate-200/80 align-top text-slate-700">
+                      <td className="px-3 py-2 font-medium text-slate-900">{item.contactName || "--"}</td>
+                      <td className="px-3 py-2">{item.mobile || "--"}</td>
+                      <td className="px-3 py-2">{item.contactCategory?.name || "--"}</td>
+                      <td className="px-3 py-2">{item.state || "--"}</td>
+                      <td className="px-3 py-2">{item.district || "--"}</td>
+                      <td className="px-3 py-2">{item.pincode || "--"}</td>
+                      <td className="max-w-[20rem] px-3 py-2 break-words">{item.address || "--"}</td>
+                      <td className="px-3 py-2">{item.email || "--"}</td>
+                      <td className="px-3 py-2">
+                        <button type="button" className="btn-red" onClick={() => deleteContact(item)} disabled={busy === `delete-contact-${item._id}`}>
+                          {busy === `delete-contact-${item._id}` ? "..." : "Delete"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!filteredContacts.length && !dashboardLoading && contacts.length > 0 && (
+                    <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={9}>No contacts match the current search/filters.</td></tr>
+                  )}
+                  {!contacts.length && !dashboardLoading && (
+                    <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={9}>No contacts saved yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="glass-panel overflow-hidden rounded-2xl p-0">
-        <div className="overflow-x-auto">
-          <table className="min-w-[1040px] w-full border-collapse text-xs sm:text-sm">
-            <thead className="bg-slate-100/80 text-left text-slate-700">
-              <tr>
-                <th className="px-3 py-2 font-semibold">Contact Name</th>
-                <th className="px-3 py-2 font-semibold">Mobile</th>
-                <th className="px-3 py-2 font-semibold">State</th>
-                <th className="px-3 py-2 font-semibold">District</th>
-                <th className="px-3 py-2 font-semibold">Pincode</th>
-                <th className="px-3 py-2 font-semibold">Address</th>
-                <th className="px-3 py-2 font-semibold">Email</th>
-                <th className="px-3 py-2 font-semibold">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredContacts.map((item) => (
-                <tr key={item._id} className="border-t border-slate-200/80 align-top text-slate-700">
-                  <td className="px-3 py-2 font-medium text-slate-900">{item.contactName || "--"}</td>
-                  <td className="px-3 py-2">{item.mobile || "--"}</td>
-                  <td className="px-3 py-2">{item.state || "--"}</td>
-                  <td className="px-3 py-2">{item.district || "--"}</td>
-                  <td className="px-3 py-2">{item.pincode || "--"}</td>
-                  <td className="max-w-[20rem] px-3 py-2 break-words">{item.address || "--"}</td>
-                  <td className="px-3 py-2">{item.email || "--"}</td>
-                  <td className="px-3 py-2">
-                    <button type="button" className="btn-red" onClick={() => deleteContact(item)} disabled={busy === `delete-contact-${item._id}`}>
-                      {busy === `delete-contact-${item._id}` ? "..." : "Delete"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!filteredContacts.length && !dashboardLoading && contacts.length > 0 && (
-                <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>No contacts match the current search/filters.</td></tr>
-              )}
-              {!contacts.length && !dashboardLoading && (
-                <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>No contacts saved yet.</td></tr>
-              )}
-            </tbody>
-          </table>
+      {showCategoryPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowCategoryPopup(false)}>
+          <div className="glass-panel w-full max-w-lg rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">Business Category</p>
+                <h2 className="font-heading text-xl font-semibold text-slate-900">{editingCategory ? "Edit Category" : "Add Category"}</h2>
+              </div>
+              <button type="button" className="btn-dark" onClick={() => setShowCategoryPopup(false)}>Close</button>
+            </div>
+
+            <form className="mt-4 grid gap-3" onSubmit={onSubmitCategory}>
+              <input
+                className="input"
+                placeholder="Category name"
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm((prev) => ({ ...prev, name: e.target.value }))}
+                required
+              />
+              <textarea
+                className="input min-h-24"
+                placeholder="Description (optional)"
+                value={categoryForm.description}
+                onChange={(e) => setCategoryForm((prev) => ({ ...prev, description: e.target.value }))}
+              />
+              <button className="btn-cyan w-fit" disabled={busy === "create-contact-category" || (editingCategory && busy === `update-contact-category-${editingCategory._id}`)}>
+                {busy === "create-contact-category" || (editingCategory && busy === `update-contact-category-${editingCategory._id}`)
+                  ? "Saving..."
+                  : editingCategory ? "Update Category" : "Save Category"}
+              </button>
+            </form>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ═══════ ADD Contact POPUP ═══════ */}
       {showAddPopup && (
