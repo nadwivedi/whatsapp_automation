@@ -286,33 +286,32 @@ function Contact({
 
   return (
     <section className="space-y-4 sm:space-y-6">
-      <div className="grid gap-4 xl:grid-cols-[350px_minmax(0,1fr)] xl:items-stretch">
+      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)] xl:items-stretch">
         <aside className="glass-panel rounded-2xl p-4 sm:p-5 xl:h-full flex flex-col">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="font-heading text-[10px] uppercase tracking-[0.2em] text-slate-500">Partition 1</p>
-              <h2 className="font-heading text-base font-semibold text-slate-900">Business Category</h2>
+              <h2 className="font-heading text-base font-semibold text-slate-900">Contact Category</h2>
               <p className="mt-1 text-xs text-slate-600">See all categories and edit them here.</p>
             </div>
-            <button type="button" className="btn-cyan" onClick={openCreateCategory}>Add</button>
+            <button type="button" className="rounded-md bg-cyan-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-cyan-700" onClick={openCreateCategory}>Add</button>
           </div>
 
-          <div className="mt-4 space-y-2 pr-1 flex-1 min-h-0 overflow-auto">
+          <div className="mt-3 space-y-1.5 pr-1 flex-1 min-h-0 overflow-auto">
             {contactCategories.map((category) => (
-              <article key={category._id} className="rounded-xl border border-slate-200 bg-white/80 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-slate-900">{category.name}</p>
-                    <p className="text-[11px] text-slate-500">{categoryUsage.get(category._id) || 0} contacts</p>
+              <article key={category._id} className="rounded-lg border border-slate-200 bg-white/85 px-2.5 py-2">
+                <div className="flex items-start justify-between gap-1.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px] font-semibold text-slate-900">{category.name}</p>
+                    <p className="text-[10px] text-slate-500">{categoryUsage.get(category._id) || 0} contacts</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button type="button" className="btn-dark" onClick={() => openEditCategory(category)} disabled={busy === `update-contact-category-${category._id}`}>Edit</button>
-                    <button type="button" className="btn-red" onClick={() => deleteContactCategory(category)} disabled={busy === `delete-contact-category-${category._id}`}>
+                  <div className="flex items-center gap-1">
+                    <button type="button" className="rounded-md border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:bg-slate-100" onClick={() => openEditCategory(category)} disabled={busy === `update-contact-category-${category._id}`}>Edit</button>
+                    <button type="button" className="rounded-md border border-rose-300 px-1.5 py-0.5 text-[10px] font-medium text-rose-600 hover:bg-rose-50" onClick={() => deleteContactCategory(category)} disabled={busy === `delete-contact-category-${category._id}`}>
                       {busy === `delete-contact-category-${category._id}` ? "..." : "Delete"}
                     </button>
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-slate-600">{category.description || "No description."}</p>
+                <p className="mt-1 truncate text-[11px] text-slate-600">{category.description || "No description."}</p>
               </article>
             ))}
             {!contactCategories.length && !dashboardLoading && (
@@ -327,28 +326,27 @@ function Contact({
           <div className="glass-panel rounded-2xl p-4 sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="font-heading text-[10px] uppercase tracking-[0.2em] text-slate-500">Partition 2</p>
                 <h2 className="font-heading text-base font-semibold text-slate-900">Contacts</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[11px] text-slate-600">Showing {filteredContacts.length} of {contacts.length}</p>
-                <button type="button" className="btn-cyan" onClick={() => setShowAddPopup(true)}>Add Contact</button>
+                <button type="button" className="rounded-md bg-cyan-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-cyan-700" onClick={() => setShowAddPopup(true)}>Add Contact</button>
                 <button type="button" className="btn-dark" onClick={() => { setShowBulkPopup(true); setBulkStatus(""); setExcelPreview(null); setExcelPasteText(""); if (!bulkDefaultCategory && contactCategories.length) setBulkDefaultCategory(contactCategories[0]._id); }}>Bulk Insert</button>
                 <button className="btn-dark" onClick={refreshAll} disabled={refreshing}>{refreshing ? "Refreshing..." : "Refresh"}</button>
               </div>
             </div>
             <div className="mt-3 grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
               <input className="input input-search-strong xl:col-span-2" placeholder="Search by name or category" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-              <select className="input" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+              <select className="input text-[11px]" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
                 <option value="">All categories</option>
                 {contactCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
-              <select className="input" value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterDistrict(""); }}>
+              <select className="input text-[11px]" value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterDistrict(""); }}>
                 <option value="">All states</option>
                 {stateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               <div className="flex gap-2">
-                <select className="input" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)}>
+                <select className="input text-[11px]" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)}>
                   <option value="">All districts</option>
                   {districtOptions.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
@@ -407,7 +405,7 @@ function Contact({
           <div className="glass-panel w-full max-w-lg rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">Business Category</p>
+                <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">Contact Category</p>
                 <h2 className="font-heading text-xl font-semibold text-slate-900">{editingCategory ? "Edit Category" : "Add Category"}</h2>
               </div>
               <button type="button" className="btn-dark" onClick={() => setShowCategoryPopup(false)}>Close</button>
