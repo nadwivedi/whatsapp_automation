@@ -1,5 +1,5 @@
-const { Business } = require("../models/Business");
-const { BusinessCategory } = require("../models/BusinessCategory");
+const { Contact } = require("../models/Business");
+const { ContactCategory } = require("../models/BusinessCategory");
 
 function normalizeName(raw) {
   return typeof raw === "string" ? raw.trim() : "";
@@ -9,14 +9,14 @@ function normalizeDescription(raw) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
-async function listBusinessCategories(req, res) {
-  const categories = await BusinessCategory.find({
+async function listContactCategories(req, res) {
+  const categories = await ContactCategory.find({
     userId: req.user._id,
   }).sort({ name: 1 });
   return res.json({ categories });
 }
 
-async function createBusinessCategory(req, res) {
+async function createContactCategory(req, res) {
   const name = normalizeName(req.body?.name);
   const description = normalizeDescription(req.body?.description);
 
@@ -25,7 +25,7 @@ async function createBusinessCategory(req, res) {
   }
 
   try {
-    const category = await BusinessCategory.create({
+    const category = await ContactCategory.create({
       userId: req.user._id,
       name,
       description,
@@ -39,13 +39,13 @@ async function createBusinessCategory(req, res) {
   }
 }
 
-async function updateBusinessCategory(req, res) {
-  const category = await BusinessCategory.findOne({
+async function updateContactCategory(req, res) {
+  const category = await ContactCategory.findOne({
     _id: req.params.categoryId,
     userId: req.user._id,
   });
   if (!category) {
-    return res.status(404).json({ message: "Business category not found." });
+    return res.status(404).json({ message: "Contact category not found." });
   }
 
   const hasName = Object.prototype.hasOwnProperty.call(req.body || {}, "name");
@@ -77,23 +77,23 @@ async function updateBusinessCategory(req, res) {
   }
 }
 
-async function deleteBusinessCategory(req, res) {
-  const category = await BusinessCategory.findOne({
+async function deleteContactCategory(req, res) {
+  const category = await ContactCategory.findOne({
     _id: req.params.categoryId,
     userId: req.user._id,
   });
   if (!category) {
-    return res.status(404).json({ message: "Business category not found." });
+    return res.status(404).json({ message: "Contact category not found." });
   }
 
-  const linkedBusinesses = await Business.countDocuments({
+  const linkedContacts = await Contact.countDocuments({
     userId: req.user._id,
-    businessCategory: category._id,
+    contactCategory: category._id,
   });
 
-  if (linkedBusinesses > 0) {
+  if (linkedContacts > 0) {
     return res.status(409).json({
-      message: `This category is used by ${linkedBusinesses} business record(s). Reassign them first.`,
+      message: `This category is used by ${linkedContacts} contact record(s). Reassign them first.`,
     });
   }
 
@@ -102,8 +102,13 @@ async function deleteBusinessCategory(req, res) {
 }
 
 module.exports = {
-  listBusinessCategories,
-  createBusinessCategory,
-  updateBusinessCategory,
-  deleteBusinessCategory,
+  listContactCategories,
+  createContactCategory,
+  updateContactCategory,
+  deleteContactCategory,
+  // Backward-compatible export aliases.
+  listBusinessCategories: listContactCategories,
+  createBusinessCategory: createContactCategory,
+  updateBusinessCategory: updateContactCategory,
+  deleteBusinessCategory: deleteContactCategory,
 };

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const businessSchema = new mongoose.Schema(
+const contactSchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -8,7 +8,7 @@ const businessSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    businessName: {
+    contactName: {
       type: String,
       required: true,
       trim: true,
@@ -59,9 +59,9 @@ const businessSchema = new mongoose.Schema(
       trim: true,
       maxlength: 1000,
     },
-    businessCategory: {
+    contactCategory: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "BusinessCategory",
+      ref: "ContactCategory",
       required: true,
       index: true,
     },
@@ -69,8 +69,12 @@ const businessSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-businessSchema.index({ userId: 1, businessName: 1, mobile: 1 });
+contactSchema.index({ userId: 1, contactName: 1, mobile: 1 });
+
+const Contact = mongoose.model("Contact", contactSchema);
 
 module.exports = {
-  Business: mongoose.model("Business", businessSchema),
+  Contact,
+  // Backward-compatible export alias for legacy imports.
+  Business: Contact,
 };

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const { Business } = require("../models/Business");
-const { BusinessCategory } = require("../models/BusinessCategory");
+const { Contact } = require("../models/Business");
+const { ContactCategory } = require("../models/BusinessCategory");
 
 function normalizeText(raw, fallback = "") {
   if (raw == null) return fallback;
@@ -43,7 +43,13 @@ function isValidEmail(email) {
 function pickCategoryInput(input) {
   if (input == null) return "";
   if (typeof input === "object" && !Array.isArray(input)) {
-    const byId = input.businessCategoryId || input.businessCategory || input._id || input.id;
+    const byId =
+      input.contactCategoryId ||
+      input.contactCategory ||
+      input.businessCategoryId ||
+      input.businessCategory ||
+      input._id ||
+      input.id;
     if (byId) return normalizeText(byId);
     const byName = input.categoryName || input.name;
     if (byName) return normalizeText(byName);
@@ -52,8 +58,8 @@ function pickCategoryInput(input) {
   return normalizeText(input);
 }
 
-function normalizeBusinessPayload(input = {}) {
-  const businessName = normalizeText(input.businessName || input.name);
+function normalizeContactPayload(input = {}) {
+  const contactName = normalizeText(input.contactName || input.businessName || input.name);
   const mobile = normalizeMobile(input.mobile || input.phoneNumber || input.phone);
   const email = normalizeEmail(input.email);
   const state = normalizeText(input.state).toLowerCase();
@@ -61,15 +67,18 @@ function normalizeBusinessPayload(input = {}) {
   const pincode = normalizePincode(input.pincode || input.pinCode || input.zip || input.postalCode);
   const address = normalizeText(input.address || input.fullAddress);
   const categoryInput = pickCategoryInput(
+    input.contactCategory ||
+      input.contactCategoryId ||
     input.businessCategory ||
       input.businessCategoryId ||
       input.category ||
       input.categoryName ||
-      input.businessCategoryName,
+      input.businessCategoryName ||
+      input.contactCategoryName,
   );
 
   return {
-    businessName,
+    contactName,
     mobile,
     email,
     state,
@@ -80,13 +89,13 @@ function normalizeBusinessPayload(input = {}) {
   };
 }
 
-function validateBusinessPayload(payload) {
+function validateContactPayload(payload) {
   const errors = [];
 
-  if (!payload.businessName || payload.businessName.length < 2) {
+  if (!payload.contactName || payload.contactName.length < 2) {
     errors.push({
-      field: "businessName",
-      message: "businessName is required and must be at least 2 characters.",
+      field: "contactName",
+      message: "contactName is required and must be at least 2 characters.",
     });
   }
 
@@ -116,8 +125,8 @@ function validateBusinessPayload(payload) {
 
   if (!payload.categoryInput) {
     errors.push({
-      field: "businessCategory",
-      message: "businessCategory is required.",
+      field: "contactCategory",
+      message: "contactCategory is required.",
     });
   }
 
@@ -125,7 +134,7 @@ function validateBusinessPayload(payload) {
 }
 
 async function buildCategoryLookup(userId) {
-  const categories = await BusinessCategory.find({
+  const categories = await ContactCategory.find({
     userId,
   }).select("_id name nameKey");
 
@@ -157,20 +166,20 @@ function resolveCategoryFromLookup(categoryInput, lookup) {
   return lookup.byNameKey.get(token.toLowerCase()) || null;
 }
 
-async function listBusinesses(req, res) {
-  const businesses = await Business.find({
+async function listContacts(req, res) {
+  const contacts = await Contact.find({
     userId: req.user._id,
   })
-    .populate("businessCategory", "name")
+    .populate("contactCategory", "name")
     .sort({ createdAt: -1 })
     .limit(5000);
 
-  return res.json({ businesses });
+  return res.json({ contacts, businesses: contacts });
 }
 
-async function createBusiness(req, res) {
-  const payload = normalizeBusinessPayload(req.body || {});
-  const errors = validateBusinessPayload(payload);
+async function createContact(req, res) {
+  const payload = normalizeContactPayload(req.body || {});
+  const errors = validateContactPayload(payload);
   if (errors.length) {
     return res.status(400).json({ message: errors[0].message, errors });
   }
@@ -178,39 +187,39 @@ async function createBusiness(req, res) {
   const lookup = await buildCategoryLookup(req.user._id);
   const category = resolveCategoryFromLookup(payload.categoryInput, lookup);
   if (!category) {
-    return res.status(400).json({ message: "Selected business category is invalid." });
+    return res.status(400).json({ message: "Selected contact category is invalid." });
   }
 
-  const business = await Business.create({
+  const contact = await Contact.create({
     userId: req.user._id,
-    businessName: payload.businessName,
+    contactName: payload.contactName,
     mobile: payload.mobile,
     email: payload.email,
     state: payload.state,
     district: payload.district,
     pincode: payload.pincode,
     address: payload.address,
-    businessCategory: category._id,
+    contactCategory: category._id,
   });
 
-  const hydrated = await Business.findById(business._id).populate("businessCategory", "name");
-  return res.status(201).json({ business: hydrated });
+  const hydrated = await Contact.findById(contact._id).populate("contactCategory", "name");
+  return res.status(201).json({ contact: hydrated, business: hydrated });
 }
 
-async function deleteBusiness(req, res) {
-  const business = await Business.findOneAndDelete({
-    _id: req.params.businessId,
+async function deleteContact(req, res) {
+  const contact = await Contact.findOneAndDelete({
+    _id: req.params.contactId || req.params.businessId,
     userId: req.user._id,
   });
 
-  if (!business) {
-    return res.status(404).json({ message: "Business not found." });
+  if (!contact) {
+    return res.status(404).json({ message: "Contact not found." });
   }
 
-  return res.json({ business });
+  return res.json({ contact, business: contact });
 }
 
-async function bulkInsertBusinesses(req, res) {
+async function bulkInsertContacts(req, res) {
   const rawItems = Array.isArray(req.body)
     ? req.body
     : Array.isArray(req.body?.items)
@@ -224,12 +233,15 @@ async function bulkInsertBusinesses(req, res) {
     return res.status(400).json({ message: "items cannot be empty." });
   }
   if (rawItems.length > 5000) {
-    return res.status(400).json({ message: "Bulk insert limit is 5000 records per request." });
+    return res.status(400).json({ message: "Bulk insert limit is 5000 contacts per request." });
   }
 
   const lookup = await buildCategoryLookup(req.user._id);
   const defaultCategoryInput = pickCategoryInput(
-    req.body?.defaultCategory || req.body?.defaultCategoryId || req.body?.businessCategory,
+    req.body?.defaultCategory ||
+      req.body?.defaultCategoryId ||
+      req.body?.contactCategory ||
+      req.body?.businessCategory,
   );
   const defaultCategory = defaultCategoryInput
     ? resolveCategoryFromLookup(defaultCategoryInput, lookup)
@@ -243,8 +255,8 @@ async function bulkInsertBusinesses(req, res) {
       return;
     }
 
-    const payload = normalizeBusinessPayload(item);
-    const validationErrors = validateBusinessPayload({
+    const payload = normalizeContactPayload(item);
+    const validationErrors = validateContactPayload({
       ...payload,
       categoryInput: payload.categoryInput || defaultCategoryInput,
     });
@@ -265,7 +277,7 @@ async function bulkInsertBusinesses(req, res) {
     if (!category) {
       errors.push({
         index,
-        field: "businessCategory",
+        field: "contactCategory",
         message: `Category not found for item. Provided value: "${payload.categoryInput || defaultCategoryInput}".`,
       });
       return;
@@ -273,14 +285,14 @@ async function bulkInsertBusinesses(req, res) {
 
     docs.push({
       userId: req.user._id,
-      businessName: payload.businessName,
+      contactName: payload.contactName,
       mobile: payload.mobile,
       email: payload.email,
       state: payload.state,
       district: payload.district,
       pincode: payload.pincode,
       address: payload.address,
-      businessCategory: category._id,
+      contactCategory: category._id,
     });
   });
 
@@ -292,28 +304,34 @@ async function bulkInsertBusinesses(req, res) {
     });
   }
 
-  const inserted = await Business.insertMany(docs);
+  const inserted = await Contact.insertMany(docs);
   const insertedIds = inserted.map((doc) => doc._id);
-  const insertedBusinesses = await Business.find({
+  const insertedContacts = await Contact.find({
     _id: { $in: insertedIds },
     userId: req.user._id,
   })
-    .populate("businessCategory", "name")
+    .populate("contactCategory", "name")
     .sort({ createdAt: -1 });
 
   return res.status(201).json({
     insertedCount: inserted.length,
-    businesses: insertedBusinesses.slice(0, 100),
+    contacts: insertedContacts.slice(0, 100),
+    businesses: insertedContacts.slice(0, 100),
     message:
       inserted.length > 100
-        ? "Businesses inserted. Response includes first 100 records."
-        : "Businesses inserted.",
+        ? "Contacts inserted. Response includes first 100 records."
+        : "Contacts inserted.",
   });
 }
 
 module.exports = {
-  listBusinesses,
-  createBusiness,
-  deleteBusiness,
-  bulkInsertBusinesses,
+  listContacts,
+  createContact,
+  deleteContact,
+  bulkInsertContacts,
+  // Backward-compatible export aliases.
+  listBusinesses: listContacts,
+  createBusiness: createContact,
+  deleteBusiness: deleteContact,
+  bulkInsertBusinesses: bulkInsertContacts,
 };

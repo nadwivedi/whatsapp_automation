@@ -554,6 +554,20 @@ class ReplyInboxService {
     emitReplyMessage(payload.ownerId, mapReplyRow(doc.toObject()));
     return doc;
   }
+
+  async deleteConversation(ownerId, contactNumber) {
+    const normalizedContact = normalizeContact(contactNumber);
+    if (!normalizedContact) {
+      throw new Error("Invalid contact number.");
+    }
+
+    const result = await ReplyMessage.deleteMany({
+      owner: ownerId,
+      contactNumber: normalizedContact,
+    });
+
+    return result.deletedCount || 0;
+  }
 }
 
 module.exports = new ReplyInboxService();

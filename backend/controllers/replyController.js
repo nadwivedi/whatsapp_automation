@@ -115,11 +115,21 @@ async function sendConversationReply(req, res) {
       sentAt: new Date(),
     });
 
-    return res.status(400).json({
+  return res.status(400).json({
       message: error.message || "Failed to send reply message.",
       failedMessage: failed,
     });
   }
+}
+
+async function deleteConversation(req, res) {
+  const contactNumber = normalizeNumber(String(req.params?.contactNumber || ""));
+  if (!contactNumber) {
+    return res.status(400).json({ message: "Valid contactNumber is required." });
+  }
+
+  const deletedCount = await replyInboxService.deleteConversation(req.user._id, contactNumber);
+  return res.json({ contactNumber, deletedCount });
 }
 
 module.exports = {
@@ -127,4 +137,5 @@ module.exports = {
   listConversationMessages,
   markConversationRead,
   sendConversationReply,
+  deleteConversation,
 };

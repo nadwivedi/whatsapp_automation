@@ -34,6 +34,7 @@ assertSecurityConfig();
 
 const app = require("./app");
 const connectMongo = require("./db/connectMongo");
+const runDataMigrations = require("./db/runDataMigrations");
 const campaignQueue = require("./services/campaignQueue");
 const whatsappSessionManager = require("./services/whatsappSessionManager");
 const { initializeReplySocketServer } = require("./services/replySocketServer");
@@ -42,6 +43,7 @@ const PORT = Number(process.env.PORT || 5000);
 
 async function startServer() {
   await connectMongo();
+  await runDataMigrations();
   campaignQueue.start();
   await whatsappSessionManager.restoreActiveSessions();
 

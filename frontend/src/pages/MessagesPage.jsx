@@ -13,6 +13,7 @@ function MessagesPage({
   loadConversations,
   openConversation,
   sendReplyToActiveConversation,
+  deleteConversation,
 }) {
   const [replyText, setReplyText] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -22,6 +23,7 @@ function MessagesPage({
     return window.matchMedia("(max-width: 1023px)").matches;
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [showChatMenu, setShowChatMenu] = useState(false);
 
   const callbacksRef = useRef({
     loadConversations,
@@ -69,6 +71,16 @@ function MessagesPage({
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [conversationMessages]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (showChatMenu && !event.target.closest('.chat-menu')) {
+        setShowChatMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showChatMenu]);
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.contactNumber === activeConversationNumber) || null,
@@ -217,12 +229,12 @@ function MessagesPage({
   const showChatPanel = !isMobile || mobileChatOpen;
 
   return (
-    <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex">
+    <div className="h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] flex overflow-hidden">
       <div className="flex w-full rounded-2xl overflow-hidden bg-white shadow-2xl">
         {showListPanel && (
-          <aside className="w-80 min-w-[280px] bg-[#ffffff] border-r border-gray-100 flex flex-col">
-            <div className="bg-[#f0f2f5] px-4 py-3 flex items-center justify-between">
-              <h1 className="text-xl font-bold text-gray-800">Chats</h1>
+          <aside className="w-full md:w-80 min-w-0 md:min-w-[280px] bg-[#ffffff] border-r border-gray-100 flex flex-col max-w-full overflow-hidden">
+            <div className="bg-[#f0f2f5] px-3 md:px-4 py-3 flex items-center justify-between">
+              <h1 className="text-lg md:text-xl font-bold text-gray-800">Chats</h1>
               <button 
                 onClick={handleRefreshInbox} 
                 disabled={conversationsLoading}
@@ -238,18 +250,18 @@ function MessagesPage({
               </button>
             </div>
             
-            <div className="px-3 py-2 bg-white">
-              <div className="bg-[#f0f2f5] rounded-full px-4 py-2.5 flex items-center gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#667781" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <div className="px-2 md:px-3 py-2 bg-white">
+              <div className="bg-[#f0f2f5] rounded-full px-3 md:px-4 py-2 flex items-center gap-2 md:gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#667781" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8"/>
                   <path d="m21 21-4.3-4.3"/>
                 </svg>
                 <input
                   type="text"
-                  placeholder="Search or start new chat"
+                  placeholder="Search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 bg-transparent outline-none text-sm placeholder:text-gray-500"
+                  className="flex-1 bg-transparent outline-none text-sm placeholder:text-gray-500 min-w-0"
                 />
               </div>
             </div>
@@ -265,27 +277,27 @@ function MessagesPage({
                     key={item.contactNumber}
                     type="button"
                     onClick={() => handleOpenConversation(item.contactNumber)}
-                    className={`w-full px-3 py-3 flex items-center gap-3 hover:bg-[#f5f6f7] transition border-b border-gray-50 ${
+                    className={`w-full px-2 md:px-3 py-3 flex items-center gap-2 md:gap-3 hover:bg-[#f5f6f7] transition border-b border-gray-50 ${
                       item.contactNumber === activeConversationNumber ? "bg-[#f0f2f5]" : ""
                     }`}
                   >
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-full bg-[#e8e8e8] flex items-center justify-center text-sm font-semibold text-gray-600">
+                    <div className="relative shrink-0">
+                      <div className="w-10 md:w-12 h-10 md:h-12 rounded-full bg-[#e8e8e8] flex items-center justify-center text-sm font-semibold text-gray-600">
                         {getInitials(item.contactNumber)}
                       </div>
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#25d366] rounded-full border-2 border-white"></div>
+                      <div className="absolute bottom-0 right-0 w-2.5 md:w-3 h-2.5 md:h-3 bg-[#25d366] rounded-full border-2 border-white"></div>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-gray-900 truncate">{formatContactName(item)}</span>
-                        <span className="text-xs text-gray-500">
+                        <span className="font-semibold text-gray-900 text-sm truncate">{formatContactName(item)}</span>
+                        <span className="text-xs text-gray-500 shrink-0 ml-1">
                           {item.lastMessageAt ? formatDateTime(item.lastMessageAt).time : ""}
                         </span>
                       </div>
                       <div className="flex items-center justify-between mt-0.5">
                         <span className="text-sm text-gray-500 truncate">{formatLastMessage(item)}</span>
                         {item.unreadCount > 0 && (
-                          <span className="min-w-[20px] h-5 flex items-center justify-center rounded-full bg-[#25d366] text-white text-xs font-semibold">
+                          <span className="min-w-[18px] md:min-w-[20px] h-4 md:h-5 flex items-center justify-center rounded-full bg-[#25d366] text-white text-xs font-semibold shrink-0 ml-1">
                             {item.unreadCount}
                           </span>
                         )}
@@ -302,19 +314,50 @@ function MessagesPage({
           <div className="flex-1 flex flex-col bg-[#e5ded8]">
             {isMobile && mobileChatOpen && (
               <div className="bg-[#f0f2f5] px-2 py-2 flex items-center gap-2">
-                <button type="button" onClick={() => setMobileChatOpen(false)} className="p-1.5 rounded-full hover:bg-gray-200">
+                <button type="button" onClick={() => setMobileChatOpen(false)} className="p-2 rounded-full hover:bg-gray-200">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m15 18-6-6 6-6"/>
                   </svg>
                 </button>
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-full bg-[#e8e8e8] flex items-center justify-center text-xs font-semibold text-gray-600">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="w-9 h-9 rounded-full bg-[#e8e8e8] flex items-center justify-center text-xs font-semibold text-gray-600 shrink-0">
                     {getInitials(activeConversation?.contactNumber)}
                   </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 text-sm">{activeConversation?.contactNumber || "Chat"}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-gray-900 text-sm truncate">{activeConversation?.contactNumber || "Chat"}</div>
                     <div className="text-xs text-gray-500">Session: {activeConversation?.sessionMobileNumber || "--"}</div>
                   </div>
+                </div>
+                <div className="relative chat-menu shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowChatMenu(!showChatMenu)}
+                    className="p-2 rounded-full hover:bg-gray-200 transition"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                      <circle cx="12" cy="12" r="2"/>
+                      <circle cx="12" cy="5" r="2"/>
+                      <circle cx="12" cy="19" r="2"/>
+                    </svg>
+                  </button>
+                  {showChatMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 chat-menu">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowChatMenu(false);
+                          deleteConversation(activeConversationNumber);
+                        }}
+                        className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-3"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Delete chat
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -324,12 +367,45 @@ function MessagesPage({
                 <div className="w-10 h-10 rounded-full bg-[#e8e8e8] flex items-center justify-center text-sm font-semibold text-gray-600">
                   {getInitials(activeConversation?.contactNumber)}
                 </div>
-                <div>
+                <div className="flex-1">
                   <div className="font-semibold text-gray-900">{activeConversation?.contactNumber || "Select a chat"}</div>
                   <div className="text-xs text-gray-500">
                     {activeConversation ? `Session: ${activeConversation.sessionMobileNumber || "--"}` : "WhatsApp"}
                   </div>
                 </div>
+                {activeConversationNumber && (
+                  <div className="relative chat-menu">
+                    <button
+                      type="button"
+                      onClick={() => setShowChatMenu(!showChatMenu)}
+                      className="p-1.5 rounded-full hover:bg-gray-200 transition"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="12" r="1.5"/>
+                        <circle cx="12" cy="6" r="1.5"/>
+                        <circle cx="12" cy="18" r="1.5"/>
+                      </svg>
+                    </button>
+                    {showChatMenu && (
+                      <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 chat-menu">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowChatMenu(false);
+                            deleteConversation(activeConversationNumber);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100 flex items-center gap-2"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                          </svg>
+                          Delete chat
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

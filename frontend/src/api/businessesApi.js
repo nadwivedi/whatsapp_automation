@@ -1,26 +1,31 @@
 import { apiRequest } from "./client";
 
-export function listBusinesses(token, onUnauthorized) {
-  return apiRequest("/businesses", { token, onUnauthorized });
+export function listContacts(token, onUnauthorized) {
+  return apiRequest("/contacts", { token, onUnauthorized });
 }
 
-export function createBusiness(token, payload) {
-  return apiRequest("/businesses", {
+export function createContact(token, payload) {
+  return apiRequest("/contacts", {
     token,
     options: { method: "POST", body: JSON.stringify(payload) },
   });
 }
 
-export function bulkInsertBusinesses(token, payload) {
-  return apiRequest("/businesses/bulk-json", {
+export function bulkInsertContacts(token, payload) {
+  return apiRequest("/contacts/bulk-json", {
     token,
     options: { method: "POST", body: JSON.stringify(payload) },
   });
 }
 
-export function deleteBusiness(token, businessId) {
-  return apiRequest(`/businesses/${businessId}`, {
+export function deleteContact(token, contactId) {
+  return apiRequest(`/contacts/${contactId}`, {
     token,
     options: { method: "DELETE" },
   });
 }
+
+export const listBusinesses = listContacts;
+export const createBusiness = createContact;
+export const bulkInsertBusinesses = bulkInsertContacts;
+export const deleteBusiness = deleteContact;

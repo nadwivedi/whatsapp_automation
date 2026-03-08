@@ -28,3 +28,11 @@ export function sendConversationReply(token, contactNumber, payload) {
     },
   });
 }
+
+export function deleteConversation(token, contactNumber, onUnauthorized) {
+  return apiRequest(`/replies/conversations/${contactNumber}`, {
+    token,
+    onUnauthorized,
+    options: { method: "DELETE" },
+  });
+}

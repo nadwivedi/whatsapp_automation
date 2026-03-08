@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 
-const MAX_JSON_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 function uniqueValues(values) {
   const keyed = new Map();
@@ -31,243 +32,214 @@ function normalizeParsedItems(parsed) {
 function parseBulkItems(rawJson) {
   const cleaned = removeCodeFence(rawJson);
   if (!cleaned) throw new Error("Please provide JSON data.");
-
   try {
     const parsed = JSON.parse(cleaned);
     const items = normalizeParsedItems(parsed);
-    if (!items) {
-      throw new Error("JSON must be an array, a single object, or an object containing an 'items' array.");
-    }
+    if (!items) throw new Error("JSON must be an array or object.");
     return items;
   } catch (firstError) {
     if (cleaned.startsWith("\"")) {
-      const fragmentCandidate = cleaned.endsWith("]") ? `[{${cleaned}` : `{${cleaned}}`;
-      try {
-        const parsedFragment = JSON.parse(fragmentCandidate);
-        const items = normalizeParsedItems(parsedFragment);
-        if (items) {
-          return items;
-        }
-      } catch (_ignored) {
-        // Fall through to the next parser strategy.
-      }
+      try { const items = normalizeParsedItems(JSON.parse(cleaned.endsWith("]") ? `[{${cleaned}` : `{${cleaned}}`)); if (items) return items; } catch { }
     }
-
-    const lines = cleaned
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-
+    const lines = cleaned.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     if (lines.length > 1) {
-      try {
-        const parsedLines = lines.map((line) => JSON.parse(line));
-        const flattened = [];
-        for (const entry of parsedLines) {
-          if (Array.isArray(entry)) {
-            flattened.push(...entry);
-            continue;
-          }
-          if (entry && typeof entry === "object") {
-            flattened.push(entry);
-            continue;
-          }
-          throw new Error("Each JSON line must be an object or array.");
-        }
-        return flattened;
-      } catch (_ignored) {
-        // Fall through to the next parser strategy.
-      }
+      try { const flat = []; lines.map((l) => JSON.parse(l)).forEach((e) => { Array.isArray(e) ? flat.push(...e) : flat.push(e); }); return flat; } catch { }
     }
-
-    const stitchedObjects = cleaned.replace(/}\s*{/g, "},{");
-    if (stitchedObjects !== cleaned) {
-      try {
-        const parsedStitched = JSON.parse(`[${stitchedObjects}]`);
-        const flattened = [];
-        for (const entry of parsedStitched) {
-          if (Array.isArray(entry)) {
-            flattened.push(...entry);
-            continue;
-          }
-          if (entry && typeof entry === "object") {
-            flattened.push(entry);
-            continue;
-          }
-          throw new Error("Each entry must be an object.");
-        }
-        return flattened;
-      } catch (_ignored) {
-        // Fall through to bracket-wrap parsing.
-      }
+    const stitched = cleaned.replace(/}\s*{/g, "},{");
+    if (stitched !== cleaned) {
+      try { const flat = []; JSON.parse(`[${stitched}]`).forEach((e) => { Array.isArray(e) ? flat.push(...e) : flat.push(e); }); return flat; } catch { }
     }
-
-    try {
-      const parsedWrapped = JSON.parse(`[${cleaned}]`);
-      const flattened = [];
-      for (const entry of parsedWrapped) {
-        if (Array.isArray(entry)) {
-          flattened.push(...entry);
-          continue;
-        }
-        if (entry && typeof entry === "object") {
-          flattened.push(entry);
-          continue;
-        }
-        throw new Error("Each entry must be an object.");
-      }
-      return flattened;
-    } catch (_ignored) {
-      throw new Error(
-        `Invalid JSON format. Use an array, object, or JSON lines. Parser error: ${firstError.message}`,
-      );
+    try { const flat = []; JSON.parse(`[${cleaned}]`).forEach((e) => { Array.isArray(e) ? flat.push(...e) : flat.push(e); }); return flat; } catch {
+      throw new Error(`Invalid JSON format. ${firstError.message}`);
     }
   }
 }
 
+const HEADER_MAP = {
+  businessname: "businessName", "business name": "businessName", "business_name": "businessName", name: "businessName",
+  mobile: "mobile", phone: "mobile", phonenumber: "mobile", "phone number": "mobile", "mobile number": "mobile", "mobile no": "mobile", "phone no": "mobile",
+  email: "email", "email address": "email",
+  state: "state", district: "district", city: "district",
+  pincode: "pincode", "pin code": "pincode", zip: "pincode", "postal code": "pincode", "zip code": "pincode",
+  address: "address", "full address": "address", fulladdress: "address",
+  businesscategory: "businessCategory", "business category": "businessCategory", category: "businessCategory", categoryname: "businessCategory", "category name": "businessCategory",
+};
+
+function parseExcelToItems(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: "array" });
+  const sheetName = wb.SheetNames[0];
+  if (!sheetName) throw new Error("Excel file has no sheets.");
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: "" });
+  if (!rows.length) throw new Error("Excel file has no data rows.");
+  if (rows.length > 5000) throw new Error("Excel file exceeds 5000 row limit.");
+  return rows.map((row) => {
+    const item = {};
+    for (const [key, value] of Object.entries(row)) {
+      const k = String(key).trim().toLowerCase();
+      item[HEADER_MAP[k] || k] = value != null ? String(value).trim() : "";
+    }
+    return item;
+  });
+}
+
+function parseTsvToItems(text) {
+  const lines = text.trim().split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) throw new Error("Need at least a header row and one data row.");
+  const headers = lines[0].split("\t").map((h) => { const n = h.trim().toLowerCase(); return HEADER_MAP[n] || n; });
+  const items = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split("\t");
+    const item = {};
+    headers.forEach((header, j) => { item[header] = (cells[j] || "").trim(); });
+    if (Object.values(item).some((v) => v)) items.push(item);
+  }
+  if (!items.length) throw new Error("No data rows found after headers.");
+  if (items.length > 5000) throw new Error("Pasted data exceeds 5000 row limit.");
+  return items;
+}
+
+const SAMPLE_DATA = [
+  { businessName: "ABC Traders", mobile: "+919876543210", email: "abc@email.com", state: "Maharashtra", district: "Mumbai", pincode: "400001", address: "123 Main Street" },
+  { businessName: "XYZ Services", mobile: "+919876543211", email: "", state: "Delhi", district: "New Delhi", pincode: "110001", address: "456 Market Road" },
+  { businessName: "PQR Industries", mobile: "+919876543212", email: "pqr@mail.com", state: "Gujarat", district: "Surat", pincode: "395001", address: "" },
+];
+
+const COLUMNS = [
+  { key: "businessName", label: "Business Name", required: true },
+  { key: "mobile", label: "Mobile", required: true },
+  { key: "email", label: "Email", required: false },
+  { key: "state", label: "State", required: false },
+  { key: "district", label: "District", required: false },
+  { key: "pincode", label: "Pincode", required: false },
+  { key: "address", label: "Address", required: false },
+];
+
+// Map camelCase keys to readable labels for preview tables
+const DISPLAY_LABELS = {
+  businessName: "Business Name", mobile: "Mobile", email: "Email",
+  state: "State", district: "District", pincode: "Pincode",
+  address: "Address", businessCategory: "Category",
+};
+const toLabel = (key) => DISPLAY_LABELS[key] || key;
+
 function BusinessesPage({
-  refreshing,
-  refreshAll,
-  busy,
-  businessCategories,
-  businesses,
-  createBusiness,
-  bulkInsertBusinesses,
-  deleteBusiness,
-  dashboardLoading,
+  refreshing, refreshAll, busy, businessCategories, businesses,
+  createBusiness, bulkInsertBusinesses, deleteBusiness, dashboardLoading,
 }) {
   const [showAddPopup, setShowAddPopup] = useState(false);
   const [showBulkPopup, setShowBulkPopup] = useState(false);
   const [form, setForm] = useState({
-    businessName: "",
-    mobile: "",
-    email: "",
-    state: "",
-    district: "",
-    pincode: "",
-    address: "",
-    businessCategory: "",
+    businessName: "", mobile: "", email: "", state: "",
+    district: "", pincode: "", address: "", businessCategory: "",
   });
   const [bulkDefaultCategory, setBulkDefaultCategory] = useState("");
   const [bulkStatus, setBulkStatus] = useState("");
   const [bulkJsonText, setBulkJsonText] = useState("");
+  const [bulkTab, setBulkTab] = useState("excel");
+  const [excelPreview, setExcelPreview] = useState(null);
+  const [excelPasteText, setExcelPasteText] = useState("");
+  const [showFormatInfo, setShowFormatInfo] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
 
-  const stateOptions = useMemo(
-    () => uniqueValues(businesses.map((item) => item.state)),
-    [businesses],
-  );
-
+  const stateOptions = useMemo(() => uniqueValues(businesses.map((b) => b.state)), [businesses]);
   const districtOptions = useMemo(() => {
-    const source = filterState
-      ? businesses.filter(
-          (item) => String(item.state || "").trim().toLowerCase() === filterState.toLowerCase(),
-        )
-      : businesses;
-    return uniqueValues(source.map((item) => item.district));
+    const source = filterState ? businesses.filter((b) => String(b.state || "").trim().toLowerCase() === filterState.toLowerCase()) : businesses;
+    return uniqueValues(source.map((b) => b.district));
   }, [businesses, filterState]);
 
   const filteredBusinesses = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
     return businesses.filter((item) => {
-      const businessName = String(item.businessName || "");
-      const categoryName = String(item.businessCategory?.name || "");
-      const state = String(item.state || "");
-      const district = String(item.district || "");
-
-      const matchesSearch =
-        !query ||
-        businessName.toLowerCase().includes(query) ||
-        categoryName.toLowerCase().includes(query);
-      const matchesCategory = !filterCategory || item.businessCategory?._id === filterCategory;
-      const matchesState = !filterState || state.trim().toLowerCase() === filterState.toLowerCase();
-      const matchesDistrict =
-        !filterDistrict || district.trim().toLowerCase() === filterDistrict.toLowerCase();
-
-      return matchesSearch && matchesCategory && matchesState && matchesDistrict;
+      const matchSearch = !q || String(item.businessName || "").toLowerCase().includes(q) || String(item.businessCategory?.name || "").toLowerCase().includes(q);
+      const matchCat = !filterCategory || item.businessCategory?._id === filterCategory;
+      const matchState = !filterState || String(item.state || "").trim().toLowerCase() === filterState.toLowerCase();
+      const matchDist = !filterDistrict || String(item.district || "").trim().toLowerCase() === filterDistrict.toLowerCase();
+      return matchSearch && matchCat && matchState && matchDist;
     });
   }, [businesses, filterCategory, filterDistrict, filterState, searchQuery]);
 
   async function onSubmit(e) {
     e.preventDefault();
     const ok = await createBusiness({
-      businessName: form.businessName.trim(),
-      mobile: form.mobile.trim(),
-      email: form.email.trim(),
-      state: form.state.trim(),
-      district: form.district.trim(),
-      pincode: form.pincode.trim(),
-      address: form.address.trim(),
-      businessCategory: form.businessCategory,
+      businessName: form.businessName.trim(), mobile: form.mobile.trim(),
+      email: form.email.trim(), state: form.state.trim(),
+      district: form.district.trim(), pincode: form.pincode.trim(),
+      address: form.address.trim(), businessCategory: form.businessCategory,
     });
     if (ok) {
-      setForm({
-        businessName: "",
-        mobile: "",
-        email: "",
-        state: "",
-        district: "",
-        pincode: "",
-        address: "",
-        businessCategory: "",
-      });
+      setForm({ businessName: "", mobile: "", email: "", state: "", district: "", pincode: "", address: "", businessCategory: "" });
       setShowAddPopup(false);
     }
   }
 
-  async function onBulkJsonUpload(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      if (file.size > MAX_JSON_UPLOAD_BYTES) {
-        throw new Error("JSON file too large. Max size is 10MB.");
-      }
-
-      const text = await file.text();
-      await submitBulkFromText(text);
-    } catch (error) {
-      setBulkStatus(error.message);
-    } finally {
-      event.target.value = "";
-    }
-  }
-
-  async function submitBulkFromText(rawJson) {
-    const items = parseBulkItems(rawJson);
-
-    const payload = {
-      items,
-      ...(bulkDefaultCategory ? { defaultCategory: bulkDefaultCategory } : {}),
-    };
+  async function submitBulkFromItems(items) {
+    const payload = { items, ...(bulkDefaultCategory ? { defaultCategory: bulkDefaultCategory } : {}) };
     const response = await bulkInsertBusinesses(payload);
     if (response?.insertedCount != null) {
-      setBulkStatus(`Inserted ${response.insertedCount} businesses.`);
-      setBulkJsonText("");
-      setShowBulkPopup(false);
+      setBulkStatus(`✅ Successfully inserted ${response.insertedCount} businesses!`);
+      setBulkJsonText(""); setExcelPreview(null); setExcelPasteText("");
+      setTimeout(() => setShowBulkPopup(false), 1500);
     }
   }
 
-  async function onBulkJsonPasteSubmit() {
+  async function onExcelUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBulkStatus("");
+    try {
+      if (file.size > MAX_UPLOAD_BYTES) throw new Error("File too large. Max 10MB.");
+      const items = parseExcelToItems(await file.arrayBuffer());
+      setExcelPreview({ items, fileName: file.name, rowCount: items.length });
+      setBulkStatus(`📊 Parsed ${items.length} rows from "${file.name}". Review and click Insert.`);
+    } catch (error) { setBulkStatus(`❌ ${error.message}`); setExcelPreview(null); }
+    finally { event.target.value = ""; }
+  }
+
+  async function onExcelInsert() {
+    if (!excelPreview?.items?.length) return;
+    try { await submitBulkFromItems(excelPreview.items); } catch (error) { setBulkStatus(`❌ ${error.message}`); }
+  }
+
+  async function onJsonUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setBulkStatus("");
+    try {
+      if (file.size > MAX_UPLOAD_BYTES) throw new Error("File too large. Max 10MB.");
+      await submitBulkFromItems(parseBulkItems(await file.text()));
+    } catch (error) { setBulkStatus(`❌ ${error.message}`); }
+    finally { event.target.value = ""; }
+  }
+
+  async function onJsonPasteSubmit() {
     try {
       const raw = bulkJsonText.trim();
-      if (!raw) {
-        throw new Error("Please paste JSON data first.");
-      }
-      await submitBulkFromText(raw);
-    } catch (error) {
-      setBulkStatus(error.message);
-    }
+      if (!raw) throw new Error("Please paste JSON data first.");
+      await submitBulkFromItems(parseBulkItems(raw));
+    } catch (error) { setBulkStatus(`❌ ${error.message}`); }
   }
 
-  function clearFilters() {
-    setSearchQuery("");
-    setFilterCategory("");
-    setFilterState("");
-    setFilterDistrict("");
+  function downloadSampleExcel() {
+    const ws = XLSX.utils.json_to_sheet(SAMPLE_DATA);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Businesses");
+    XLSX.writeFile(wb, "businesses_sample.xlsx");
   }
+
+  // Parse pasted TSV for live table
+  const pastedRows = useMemo(() => {
+    if (!excelPasteText.trim()) return { headers: [], rows: [], count: 0 };
+    const lines = excelPasteText.trim().split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 1) return { headers: [], rows: [], count: 0 };
+    const headers = lines[0].split("\t").map((h) => h.trim());
+    const rows = lines.slice(1).map((line) => line.split("\t").map((c) => c.trim()));
+    return { headers, rows, count: rows.filter((r) => r.some(Boolean)).length };
+  }, [excelPasteText]);
+
+  const F = (field) => (e) => setForm((p) => ({ ...p, [field]: e.target.value }));
 
   return (
     <section className="space-y-4 sm:space-y-6">
@@ -275,84 +247,42 @@ function BusinessesPage({
         <div>
           <p className="font-heading text-xs uppercase tracking-[0.22em] text-slate-500">Directory</p>
           <h1 className="font-heading text-2xl font-bold text-slate-900 sm:text-3xl">Businesses</h1>
-          <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-            Store business records and assign each one to a category.
-          </p>
+          <p className="mt-1 text-xs text-slate-600 sm:text-sm">Store business records and assign each one to a category.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn-cyan" onClick={() => setShowAddPopup(true)}>
-            Add Business
-          </button>
-          <button type="button" className="btn-dark" onClick={() => setShowBulkPopup(true)}>
-            Bulk Insert
-          </button>
-          <button className="btn-dark" onClick={refreshAll} disabled={refreshing}>
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
+          <button type="button" className="btn-cyan" onClick={() => setShowAddPopup(true)}>Add Business</button>
+          <button type="button" className="btn-dark" onClick={() => { setShowBulkPopup(true); setBulkStatus(""); setExcelPreview(null); setExcelPasteText(""); if (!bulkDefaultCategory && businessCategories.length) setBulkDefaultCategory(businessCategories[0]._id); }}>Bulk Insert</button>
+          <button className="btn-dark" onClick={refreshAll} disabled={refreshing}>{refreshing ? "Refreshing..." : "Refresh"}</button>
         </div>
       </header>
 
+      {/* Filters */}
       <div className="glass-panel rounded-2xl p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-heading text-lg font-semibold text-slate-900">Search and Filters</h2>
-          <p className="text-xs text-slate-600">
-            Showing {filteredBusinesses.length} of {businesses.length}
-          </p>
+          <p className="text-xs text-slate-600">Showing {filteredBusinesses.length} of {businesses.length}</p>
         </div>
         <div className="mt-3 grid gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <input
-            className="input input-search-strong xl:col-span-2"
-            placeholder="Search by business name or category"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <select
-            className="input"
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-          >
+          <input className="input input-search-strong xl:col-span-2" placeholder="Search by business name or category" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          <select className="input" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
             <option value="">All categories</option>
-            {businessCategories.map((category) => (
-              <option key={category._id} value={category._id}>
-                {category.name}
-              </option>
-            ))}
+            {businessCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
           </select>
-          <select
-            className="input"
-            value={filterState}
-            onChange={(e) => {
-              setFilterState(e.target.value);
-              setFilterDistrict("");
-            }}
-          >
+          <select className="input" value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterDistrict(""); }}>
             <option value="">All states</option>
-            {stateOptions.map((state) => (
-              <option key={state} value={state}>
-                {state}
-              </option>
-            ))}
+            {stateOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <div className="flex gap-2">
-            <select
-              className="input"
-              value={filterDistrict}
-              onChange={(e) => setFilterDistrict(e.target.value)}
-            >
+            <select className="input" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)}>
               <option value="">All districts</option>
-              {districtOptions.map((district) => (
-                <option key={district} value={district}>
-                  {district}
-                </option>
-              ))}
+              {districtOptions.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
-            <button type="button" className="btn-dark whitespace-nowrap" onClick={clearFilters}>
-              Clear
-            </button>
+            <button type="button" className="btn-dark whitespace-nowrap" onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterState(""); setFilterDistrict(""); }}>Clear</button>
           </div>
         </div>
       </div>
 
+      {/* Table */}
       <div className="glass-panel overflow-hidden rounded-2xl p-0">
         <div className="overflow-x-auto">
           <table className="min-w-[1040px] w-full border-collapse text-xs sm:text-sm">
@@ -379,197 +309,380 @@ function BusinessesPage({
                   <td className="max-w-[20rem] px-3 py-2 break-words">{item.address || "--"}</td>
                   <td className="px-3 py-2">{item.email || "--"}</td>
                   <td className="px-3 py-2">
-                    <button
-                      type="button"
-                      className="btn-red"
-                      onClick={() => deleteBusiness(item)}
-                      disabled={busy === `delete-business-${item._id}`}
-                    >
-                      {busy === `delete-business-${item._id}` ? "Deleting..." : "Delete"}
+                    <button type="button" className="btn-red" onClick={() => deleteBusiness(item)} disabled={busy === `delete-business-${item._id}`}>
+                      {busy === `delete-business-${item._id}` ? "..." : "Delete"}
                     </button>
                   </td>
                 </tr>
               ))}
-
               {!filteredBusinesses.length && !dashboardLoading && businesses.length > 0 && (
-                <tr>
-                  <td className="px-3 py-6 text-center text-slate-500" colSpan={8}>
-                    No businesses match the current search/filters.
-                  </td>
-                </tr>
+                <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>No businesses match the current search/filters.</td></tr>
               )}
               {!businesses.length && !dashboardLoading && (
-                <tr>
-                  <td className="px-3 py-6 text-center text-slate-500" colSpan={8}>
-                    No businesses saved yet.
-                  </td>
-                </tr>
+                <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={8}>No businesses saved yet.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* ═══════ ADD BUSINESS POPUP ═══════ */}
       {showAddPopup && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
-          onClick={() => setShowAddPopup(false)}
-        >
-          <div
-            className="glass-panel w-full max-w-3xl rounded-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-heading text-xs uppercase tracking-[0.22em] text-slate-500">Create</p>
-                <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">Add Business</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowAddPopup(false)}>
+          <div className="glass-panel w-full max-w-2xl rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-cyan-50 to-emerald-50 px-5 py-4 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-lg">🏢</div>
+                <div>
+                  <h2 className="font-heading text-lg font-bold text-slate-900">Add Business</h2>
+                  <p className="text-[11px] text-slate-500">Fill in the details to add a new business record</p>
+                </div>
               </div>
-              <button type="button" className="btn-red" onClick={() => setShowAddPopup(false)}>
-                Close
+              <button type="button" className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700" onClick={() => setShowAddPopup(false)}>
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
 
             {!businessCategories.length ? (
-              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 sm:text-sm">
-                Add at least one business category first.
-              </p>
+              <div className="px-5 py-4">
+                <p className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">⚠️ Add at least one business category first.</p>
+              </div>
             ) : null}
 
-            <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={onSubmit}>
-              <input
-                className="input"
-                placeholder="Business name"
-                value={form.businessName}
-                onChange={(e) => setForm((prev) => ({ ...prev, businessName: e.target.value }))}
-                required
-              />
-              <input
-                className="input"
-                placeholder="Mobile"
-                value={form.mobile}
-                onChange={(e) => setForm((prev) => ({ ...prev, mobile: e.target.value }))}
-                required
-              />
-              <input
-                className="input"
-                placeholder="Email"
-                value={form.email}
-                onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-              />
-              <select
-                className="input"
-                value={form.businessCategory}
-                onChange={(e) => setForm((prev) => ({ ...prev, businessCategory: e.target.value }))}
-                required
-              >
-                <option value="">Select category</option>
-                {businessCategories.map((category) => (
-                  <option key={category._id} value={category._id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="input"
-                placeholder="State"
-                value={form.state}
-                onChange={(e) => setForm((prev) => ({ ...prev, state: e.target.value }))}
-              />
-              <input
-                className="input"
-                placeholder="District"
-                value={form.district}
-                onChange={(e) => setForm((prev) => ({ ...prev, district: e.target.value }))}
-              />
-              <input
-                className="input"
-                placeholder="Pincode"
-                value={form.pincode}
-                onChange={(e) => setForm((prev) => ({ ...prev, pincode: e.target.value }))}
-              />
-              <textarea
-                className="input min-h-24 sm:col-span-2"
-                placeholder="Address"
-                value={form.address}
-                onChange={(e) => setForm((prev) => ({ ...prev, address: e.target.value }))}
-              />
-              <button
-                className="btn-cyan w-fit sm:col-span-2"
-                disabled={busy === "create-business" || !businessCategories.length}
-              >
-                {busy === "create-business" ? "Saving..." : "Save Business"}
-              </button>
+            <form className="p-5" onSubmit={onSubmit}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {/* Business Name */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Business Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input className="input" placeholder="e.g. ABC Traders" value={form.businessName} onChange={F("businessName")} required />
+                </div>
+                {/* Mobile */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Mobile <span className="text-rose-500">*</span>
+                  </label>
+                  <input className="input" placeholder="e.g. +919876543210" value={form.mobile} onChange={F("mobile")} required />
+                </div>
+                {/* Email */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Email</label>
+                  <input className="input" placeholder="e.g. contact@business.com" value={form.email} onChange={F("email")} />
+                </div>
+                {/* Category */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Category <span className="text-rose-500">*</span>
+                  </label>
+                  <select className="input" value={form.businessCategory} onChange={F("businessCategory")} required>
+                    <option value="">Select category</option>
+                    {businessCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                  </select>
+                </div>
+                {/* State */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">State</label>
+                  <input className="input" placeholder="e.g. Maharashtra" value={form.state} onChange={F("state")} />
+                </div>
+                {/* District */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">District</label>
+                  <input className="input" placeholder="e.g. Mumbai" value={form.district} onChange={F("district")} />
+                </div>
+                {/* Pincode */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Pincode</label>
+                  <input className="input" placeholder="e.g. 400001" value={form.pincode} onChange={F("pincode")} />
+                </div>
+                {/* Address */}
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Address</label>
+                  <input className="input" placeholder="e.g. 123 Main Street" value={form.address} onChange={F("address")} />
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                <button type="button" className="btn-dark" onClick={() => setShowAddPopup(false)}>Cancel</button>
+                <button className="btn-cyan" disabled={busy === "create-business" || !businessCategories.length}>
+                  {busy === "create-business" ? "Saving..." : "Save Business"}
+                </button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
+      {/* ═══════ BULK INSERT POPUP ═══════ */}
       {showBulkPopup && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
-          onClick={() => setShowBulkPopup(false)}
-        >
-          <div
-            className="glass-panel w-full max-w-2xl rounded-2xl p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-heading text-xs uppercase tracking-[0.22em] text-slate-500">Import</p>
-                <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-900">Bulk Insert (JSON)</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowBulkPopup(false)}>
+          <div className="glass-panel w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-violet-50 to-rose-50 px-5 py-4 rounded-t-2xl">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-lg">📦</div>
+                <div>
+                  <h2 className="font-heading text-lg font-bold text-slate-900">Bulk Insert Businesses</h2>
+                  <p className="text-[11px] text-slate-500">Import multiple businesses from Excel, CSV, or JSON</p>
+                </div>
               </div>
-              <button type="button" className="btn-red" onClick={() => setShowBulkPopup(false)}>
-                Close
+              <button type="button" className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-200 hover:text-slate-700" onClick={() => setShowBulkPopup(false)}>
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <p className="mt-2 text-xs text-slate-600 sm:text-sm">
-              Upload array of records with fields: businessName, mobile, email, state, district,
-              pincode, address, businessCategory/categoryName.
-            </p>
-            <div className="mt-4 grid gap-3">
-              <select
-                className="input"
-                value={bulkDefaultCategory}
-                onChange={(e) => setBulkDefaultCategory(e.target.value)}
-              >
-                <option value="">Default category (optional)</option>
-                {businessCategories.map((category) => (
-                  <option key={category._id} value={category._id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-              <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-slate-900 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100">
-                Upload JSON File
-                <input
-                  className="hidden"
-                  type="file"
-                  accept="application/json,.json"
-                  onChange={onBulkJsonUpload}
-                  disabled={busy === "bulk-business-json"}
-                />
-              </label>
-              <p className="text-[11px] text-slate-600">Or paste JSON below:</p>
-              <textarea
-                className="input min-h-40 font-mono text-[11px]"
-                placeholder='Paste JSON array here, for example: [{\"businessName\":\"ABC Traders\",\"mobile\":\"+919876543210\"}]'
-                value={bulkJsonText}
-                onChange={(e) => setBulkJsonText(e.target.value)}
-              />
-              <button
-                type="button"
-                className="btn-cyan w-fit"
-                onClick={onBulkJsonPasteSubmit}
-                disabled={busy === "bulk-business-json"}
-              >
-                {busy === "bulk-business-json" ? "Inserting..." : "Bulk Insert from Text"}
-              </button>
+
+            <div className="p-5 space-y-5">
+
+              {/* ── STEP 1: Category ── */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[11px] font-bold text-white">1</span>
+                  <h3 className="text-sm font-bold text-slate-800">Select Category</h3>
+                  <button
+                    type="button"
+                    className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-bold transition ${showFormatInfo
+                      ? "border-cyan-400 bg-cyan-50 text-cyan-600"
+                      : "border-slate-300 bg-white text-slate-500 hover:bg-cyan-50 hover:border-cyan-400 hover:text-cyan-600"
+                      }`}
+                    onMouseEnter={() => setShowFormatInfo(true)}
+                  >
+                    i
+                  </button>
+                </div>
+                <select className="input max-w-md" value={bulkDefaultCategory} onChange={(e) => setBulkDefaultCategory(e.target.value)}>
+                  <option value="">Choose a category for all records</option>
+                  {businessCategories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                </select>
+              </div>
+
+              {/* ── STEP 2: Upload ── */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-[11px] font-bold text-white">2</span>
+                  <h3 className="text-sm font-bold text-slate-800">Upload Your Data</h3>
+                </div>
+
+                {/* Tab Switcher */}
+                <div className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 max-w-xs mb-4">
+                  <button type="button" className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold transition-all ${bulkTab === "excel" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setBulkTab("excel")}>
+                    📊 Excel / CSV
+                  </button>
+                  <button type="button" className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold transition-all ${bulkTab === "json" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setBulkTab("json")}>
+                    {"{ }"} JSON
+                  </button>
+                </div>
+
+                {/* ── Excel Tab ── */}
+                {bulkTab === "excel" && (
+                  <div className="space-y-4">
+                    {/* File upload + download sample */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                        Upload Excel / CSV
+                        <input className="hidden" type="file" accept=".xlsx,.xls,.csv,.ods" onChange={onExcelUpload} disabled={busy === "bulk-business-json"} />
+                      </label>
+                      <button type="button" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50" onClick={downloadSampleExcel}>
+                        ⬇️ Download Sample Excel
+                      </button>
+                    </div>
+
+                    {/* Preview from file */}
+                    {excelPreview && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <p className="text-sm font-semibold text-emerald-800">
+                            📄 {excelPreview.fileName} <span className="font-normal text-emerald-600">({excelPreview.rowCount} rows)</span>
+                          </p>
+                          <button type="button" className="text-xs text-emerald-600 hover:text-emerald-800 underline" onClick={() => setExcelPreview(null)}>Clear</button>
+                        </div>
+                        <div className="max-h-48 overflow-auto rounded-lg border border-emerald-200 bg-white">
+                          <table className="w-full border-collapse text-[10px] sm:text-xs">
+                            <thead className="sticky top-0 bg-emerald-50 text-left">
+                              <tr>
+                                <th className="px-2 py-1.5 font-semibold text-emerald-700">#</th>
+                                {Object.keys(excelPreview.items[0] || {}).slice(0, 7).map((k) => (
+                                  <th key={k} className="px-2 py-1.5 font-semibold text-emerald-700 whitespace-nowrap">{toLabel(k)}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {excelPreview.items.slice(0, 5).map((row, i) => (
+                                <tr key={i} className="border-t border-emerald-100">
+                                  <td className="px-2 py-1 text-emerald-400">{i + 1}</td>
+                                  {Object.values(row).slice(0, 7).map((v, j) => (
+                                    <td key={j} className="px-2 py-1 max-w-[120px] truncate text-slate-700">{String(v)}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                              {excelPreview.rowCount > 5 && (
+                                <tr><td className="px-2 py-1 text-center text-slate-400" colSpan={99}>... and {excelPreview.rowCount - 5} more rows</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                        <button type="button" className="btn-cyan mt-3" onClick={onExcelInsert} disabled={busy === "bulk-business-json"}>
+                          {busy === "bulk-business-json" ? "Inserting..." : `✓ Insert ${excelPreview.rowCount} Businesses`}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ── Paste from Excel ── */}
+                    <div>
+                      <p className="text-[11px] text-slate-600 mb-2">Or paste from Excel below (include header row):</p>
+
+                      {!excelPasteText.trim() ? (
+                        /* Visual table placeholder — click to start pasting */
+                        <div
+                          className="relative cursor-text rounded-lg border border-slate-300 bg-white overflow-hidden transition hover:border-cyan-400"
+                          onClick={() => {
+                            const el = document.getElementById("excel-paste-input");
+                            if (el) el.focus();
+                          }}
+                        >
+                          <table className="w-full border-collapse text-[11px]">
+                            <thead className="bg-slate-100 text-left">
+                              <tr>
+                                {COLUMNS.map((col) => (
+                                  <th key={col.key} className="px-2.5 py-2 font-semibold text-slate-500 whitespace-nowrap border-r border-slate-200 last:border-r-0">
+                                    {col.label}
+                                    {col.required && <span className="ml-0.5 text-rose-400">*</span>}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {SAMPLE_DATA.map((row, ri) => (
+                                <tr key={ri} className="border-t border-slate-100">
+                                  {COLUMNS.map((col) => (
+                                    <td key={col.key} className="px-2.5 py-1.5 text-slate-300 italic border-r border-slate-100 last:border-r-0 truncate max-w-[130px]">
+                                      {row[col.key] || "—"}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <div className="border-t border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                            <p className="text-[11px] text-slate-400">📋 Click here and press <kbd className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Ctrl+V</kbd> to paste from Excel</p>
+                          </div>
+                          {/* Hidden textarea to capture paste */}
+                          <textarea
+                            id="excel-paste-input"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-text"
+                            value={excelPasteText}
+                            onChange={(e) => setExcelPasteText(e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        /* Actual pasted content */
+                        <div>
+                          <textarea
+                            className="input min-h-36 font-mono text-[11px]"
+                            value={excelPasteText}
+                            onChange={(e) => setExcelPasteText(e.target.value)}
+                            autoFocus
+                          />
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button" className="btn-cyan"
+                              disabled={busy === "bulk-business-json"}
+                              onClick={() => {
+                                try {
+                                  const items = parseTsvToItems(excelPasteText);
+                                  setExcelPreview({ items, fileName: "Pasted data", rowCount: items.length });
+                                  setBulkStatus(`📊 Parsed ${items.length} rows. Review above and click Insert.`);
+                                } catch (err) { setBulkStatus(`❌ ${err.message}`); }
+                              }}
+                            >
+                              Bulk Insert from Paste
+                            </button>
+                            <button type="button" className="btn-dark" onClick={() => setExcelPasteText("")}>Clear</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── JSON Tab ── */}
+                {bulkTab === "json" && (
+                  <div className="space-y-3">
+                    <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-slate-800 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-100">
+                      📂 Upload JSON File
+                      <input className="hidden" type="file" accept="application/json,.json" onChange={onJsonUpload} disabled={busy === "bulk-business-json"} />
+                    </label>
+                    <p className="text-[11px] text-slate-600">Or paste JSON below:</p>
+                    <textarea
+                      className="input min-h-36 font-mono text-[11px]"
+                      placeholder={'[\n  { "businessName": "ABC Traders", "mobile": "+919876543210" },\n  { "businessName": "XYZ Services", "mobile": "+919876543211" }\n]'}
+                      value={bulkJsonText}
+                      onChange={(e) => setBulkJsonText(e.target.value)}
+                    />
+                    <button type="button" className="btn-cyan w-fit" onClick={onJsonPasteSubmit} disabled={busy === "bulk-business-json"}>
+                      {busy === "bulk-business-json" ? "Inserting..." : "Bulk Insert from JSON"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Status Message */}
               {bulkStatus && (
-                <p className="whitespace-pre-line rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700 sm:text-sm">
+                <div className={`rounded-xl px-4 py-3 text-sm font-medium ${bulkStatus.startsWith("✅") ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                  bulkStatus.startsWith("❌") ? "bg-rose-50 text-rose-700 border border-rose-200" :
+                    "bg-blue-50 text-blue-700 border border-blue-200"
+                  }`}>
                   {bulkStatus}
-                </p>
+                </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════ FORMAT INFO OVERLAY (separate from bulk popup) ═══════ */}
+      {showFormatInfo && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none"
+          onMouseEnter={() => setShowFormatInfo(true)}
+        >
+          <div
+            className="pointer-events-auto w-[440px] rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
+            onMouseEnter={() => setShowFormatInfo(true)}
+            onMouseLeave={() => setShowFormatInfo(false)}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-bold text-slate-800">📋 Expected Data Format</p>
+              <button type="button" className="text-xs text-slate-400 hover:text-slate-600" onClick={() => setShowFormatInfo(false)}>✕</button>
+            </div>
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-left">
+                  <th className="px-2 py-2 font-semibold text-slate-600">Column</th>
+                  <th className="px-2 py-2 font-semibold text-slate-600 text-center">Status</th>
+                  <th className="px-2 py-2 font-semibold text-slate-600">Example</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COLUMNS.map((col) => (
+                  <tr key={col.key} className="border-b border-slate-100">
+                    <td className="px-2 py-2 font-medium text-slate-700">{col.label}</td>
+                    <td className="px-2 py-2 text-center">
+                      {col.required
+                        ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-600">Required</span>
+                        : <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-400">Optional</span>
+                      }
+                    </td>
+                    <td className="px-2 py-2 text-slate-500">{SAMPLE_DATA[0][col.key] || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-3 text-[11px] text-slate-500">
+              💡 Category is selected from the dropdown — no need in your file. Column headers are flexible (e.g. "Phone Number", "phone", "mobile no" all work).
+            </p>
+            <p className="mt-1 text-[10px] text-slate-400">Works for both Excel and JSON formats.</p>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const businessCategorySchema = new mongoose.Schema(
+const contactCategorySchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -31,7 +31,7 @@ const businessCategorySchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-businessCategorySchema.pre("validate", function normalizeCategoryName() {
+contactCategorySchema.pre("validate", function normalizeCategoryName() {
   const rawName = typeof this.name === "string" ? this.name.trim() : "";
   this.name = rawName;
   this.nameKey = rawName.toLowerCase();
@@ -41,11 +41,15 @@ businessCategorySchema.pre("validate", function normalizeCategoryName() {
   }
 });
 
-businessCategorySchema.index(
+contactCategorySchema.index(
   { userId: 1, nameKey: 1 },
   { unique: true },
 );
 
+const ContactCategory = mongoose.model("ContactCategory", contactCategorySchema);
+
 module.exports = {
-  BusinessCategory: mongoose.model("BusinessCategory", businessCategorySchema),
+  ContactCategory,
+  // Backward-compatible export alias for legacy imports.
+  BusinessCategory: ContactCategory,
 };

@@ -75,31 +75,31 @@ function App() {
       );
     }
 
-    if (activeRoute === "businessCategories") {
+    if (activeRoute === "contactCategories") {
       return (
         <BusinessCategoriesPage
           refreshing={app.refreshing}
           refreshAll={app.refreshAll}
           busy={app.busy}
-          businessCategories={app.businessCategories}
-          createBusinessCategory={app.createBusinessCategory}
-          deleteBusinessCategory={app.deleteBusinessCategory}
+          contactCategories={app.contactCategories}
+          createContactCategory={app.createContactCategory}
+          deleteContactCategory={app.deleteContactCategory}
           dashboardLoading={app.dashboardLoading}
         />
       );
     }
 
-    if (activeRoute === "businesses") {
+    if (activeRoute === "contacts") {
       return (
         <BusinessesPage
           refreshing={app.refreshing}
           refreshAll={app.refreshAll}
           busy={app.busy}
-          businessCategories={app.businessCategories}
-          businesses={app.businesses}
-          createBusiness={app.createBusiness}
-          bulkInsertBusinesses={app.bulkInsertBusinesses}
-          deleteBusiness={app.deleteBusiness}
+          contactCategories={app.contactCategories}
+          contacts={app.contacts}
+          createContact={app.createContact}
+          bulkInsertContacts={app.bulkInsertContacts}
+          deleteContact={app.deleteContact}
           dashboardLoading={app.dashboardLoading}
         />
       );
@@ -143,6 +143,7 @@ function App() {
           loadConversations={app.loadConversations}
           openConversation={app.openConversation}
           sendReplyToActiveConversation={app.sendReplyToActiveConversation}
+          deleteConversation={app.deleteConversation}
         />
       );
     }

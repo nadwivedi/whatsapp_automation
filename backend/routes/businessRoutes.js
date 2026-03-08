@@ -1,16 +1,16 @@
 const express = require("express");
 const {
-  listBusinesses,
-  createBusiness,
-  deleteBusiness,
-  bulkInsertBusinesses,
+  listContacts,
+  createContact,
+  deleteContact,
+  bulkInsertContacts,
 } = require("../controllers/businessController");
 
 const router = express.Router();
 
-router.get("/", listBusinesses);
-router.post("/", createBusiness);
-router.post("/bulk-json", bulkInsertBusinesses);
-router.delete("/:businessId", deleteBusiness);
+router.get("/", listContacts);
+router.post("/", createContact);
+router.post("/bulk-json", bulkInsertContacts);
+router.delete("/:contactId", deleteContact);
 
 module.exports = router;

@@ -57,6 +57,8 @@ app.use("/api/accounts", requireAuth, accountRoutes);
 app.use("/api/templates", requireAuth, templateRoutes);
 app.use("/api/campaigns", requireAuth, campaignRoutes);
 app.use("/api/settings", requireAuth, settingsRoutes);
+app.use("/api/contact-categories", requireAuth, businessCategoryRoutes);
+app.use("/api/contacts", requireAuth, businessRoutes);
 app.use("/api/business-categories", requireAuth, businessCategoryRoutes);
 app.use("/api/businesses", requireAuth, businessRoutes);
 app.use("/api/replies", requireAuth, replyRoutes);

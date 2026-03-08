@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { formatDate } from "../utils/formatters";
 
-function BusinessCategoriesPage({
+function ContactCategoriesPage({
   refreshing,
   refreshAll,
   busy,
-  businessCategories,
-  createBusinessCategory,
-  deleteBusinessCategory,
+  contactCategories,
+  createContactCategory,
+  deleteContactCategory,
   dashboardLoading,
 }) {
   const [showCreatePopup, setShowCreatePopup] = useState(false);
@@ -15,7 +15,7 @@ function BusinessCategoriesPage({
 
   async function onSubmit(e) {
     e.preventDefault();
-    const ok = await createBusinessCategory({
+    const ok = await createContactCategory({
       name: form.name.trim(),
       description: form.description.trim(),
     });
@@ -31,10 +31,10 @@ function BusinessCategoriesPage({
         <div>
           <p className="font-heading text-xs uppercase tracking-[0.22em] text-slate-500">Directory</p>
           <h1 className="font-heading text-2xl font-bold text-slate-900 sm:text-3xl">
-            Business Categories
+            Contact Categories
           </h1>
           <p className="mt-1 text-xs text-slate-600 sm:text-sm">
-            Create and manage reusable categories for business records.
+            Create and manage reusable categories for contact records.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -52,7 +52,7 @@ function BusinessCategoriesPage({
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {businessCategories.map((category) => (
+        {contactCategories.map((category) => (
           <article key={category._id} className="glass-panel rounded-2xl p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -64,10 +64,10 @@ function BusinessCategoriesPage({
               <button
                 type="button"
                 className="btn-red"
-                onClick={() => deleteBusinessCategory(category)}
-                disabled={busy === `delete-business-category-${category._id}`}
+                onClick={() => deleteContactCategory(category)}
+                disabled={busy === `delete-contact-category-${category._id}`}
               >
-                {busy === `delete-business-category-${category._id}` ? "Deleting..." : "Delete"}
+                {busy === `delete-contact-category-${category._id}` ? "Deleting..." : "Delete"}
               </button>
             </div>
             <p className="mt-3 text-sm text-slate-600">
@@ -76,8 +76,8 @@ function BusinessCategoriesPage({
           </article>
         ))}
 
-        {!businessCategories.length && !dashboardLoading && (
-          <p className="empty col-span-2">No business categories yet.</p>
+        {!contactCategories.length && !dashboardLoading && (
+          <p className="empty col-span-2">No contact categories yet.</p>
         )}
       </div>
 
@@ -118,8 +118,8 @@ function BusinessCategoriesPage({
                 value={form.description}
                 onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
               />
-              <button className="btn-cyan w-fit" disabled={busy === "create-business-category"}>
-                {busy === "create-business-category" ? "Saving..." : "Save Category"}
+              <button className="btn-cyan w-fit" disabled={busy === "create-contact-category"}>
+                {busy === "create-contact-category" ? "Saving..." : "Save Category"}
               </button>
             </form>
           </div>
@@ -129,4 +129,4 @@ function BusinessCategoriesPage({
   );
 }
 
-export default BusinessCategoriesPage;
+export default ContactCategoriesPage;

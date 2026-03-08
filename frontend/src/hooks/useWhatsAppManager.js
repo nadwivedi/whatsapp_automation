@@ -11,16 +11,16 @@ import {
 } from "../api/accountsApi";
 import { createTemplate as createTemplateApi, listTemplates, deleteTemplate as deleteTemplateApi } from "../api/templatesApi";
 import {
-  createBusinessCategory as createBusinessCategoryApi,
-  deleteBusinessCategory as deleteBusinessCategoryApi,
-  listBusinessCategories,
-} from "../api/businessCategoriesApi";
+  createContactCategory as createContactCategoryApi,
+  deleteContactCategory as deleteContactCategoryApi,
+  listContactCategories,
+} from "../api/contactCategoriesApi";
 import {
-  bulkInsertBusinesses as bulkInsertBusinessesApi,
-  createBusiness as createBusinessApi,
-  deleteBusiness as deleteBusinessApi,
-  listBusinesses,
-} from "../api/businessesApi";
+  bulkInsertContacts as bulkInsertContactsApi,
+  createContact as createContactApi,
+  deleteContact as deleteContactApi,
+  listContacts,
+} from "../api/contactsApi";
 import {
   createCampaign as createCampaignApi,
   getCampaignMessages,
@@ -39,6 +39,7 @@ import {
   listConversations as listConversationsApi,
   markConversationRead as markConversationReadApi,
   sendConversationReply as sendConversationReplyApi,
+  deleteConversation as deleteConversationApi,
 } from "../api/repliesApi";
 import { countRecipients } from "../utils/formatters";
 
@@ -89,8 +90,8 @@ export function useWhatsAppManager() {
 
   const [accounts, setAccounts] = useState([]);
   const [templates, setTemplates] = useState([]);
-  const [businessCategories, setBusinessCategories] = useState([]);
-  const [businesses, setBusinesses] = useState([]);
+  const [contactCategories, setContactCategories] = useState([]);
+  const [contacts, setContacts] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [allMessages, setAllMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -176,8 +177,8 @@ export function useWhatsAppManager() {
       setProfile(null);
       setAccounts([]);
       setTemplates([]);
-      setBusinessCategories([]);
-      setBusinesses([]);
+      setContactCategories([]);
+      setContacts([]);
       setCampaigns([]);
       setAllMessages([]);
       setConversations([]);
@@ -219,8 +220,8 @@ export function useWhatsAppManager() {
         const [a, t, bc, b, c, s] = await Promise.all([
           listAccounts(activeToken, onUnauthorized),
           listTemplates(activeToken, onUnauthorized),
-          listBusinessCategories(activeToken, onUnauthorized),
-          listBusinesses(activeToken, onUnauthorized),
+          listContactCategories(activeToken, onUnauthorized),
+          listContacts(activeToken, onUnauthorized),
           listCampaigns(activeToken, onUnauthorized),
           getSettingsApi(activeToken, onUnauthorized),
         ]);
@@ -228,8 +229,8 @@ export function useWhatsAppManager() {
         if (!cancelled) {
           setAccounts(a.accounts || []);
           setTemplates(t.templates || []);
-          setBusinessCategories(bc.categories || []);
-          setBusinesses(b.businesses || []);
+          setContactCategories(bc.categories || []);
+          setContacts(b.contacts || []);
           setCampaigns(c.campaigns || []);
           setSettings(s.settings || DEFAULT_SETTINGS);
           setDailyDrafts((prev) => {
@@ -282,8 +283,8 @@ export function useWhatsAppManager() {
         getMe(token, onUnauthorized),
         listAccounts(token, onUnauthorized),
         listTemplates(token, onUnauthorized),
-        listBusinessCategories(token, onUnauthorized),
-        listBusinesses(token, onUnauthorized),
+        listContactCategories(token, onUnauthorized),
+        listContacts(token, onUnauthorized),
         listCampaigns(token, onUnauthorized),
         getSettingsApi(token, onUnauthorized),
       ]);
@@ -300,8 +301,8 @@ export function useWhatsAppManager() {
         return next;
       });
       setTemplates(t.templates || []);
-      setBusinessCategories(bc.categories || []);
-      setBusinesses(b.businesses || []);
+      setContactCategories(bc.categories || []);
+      setContacts(b.contacts || []);
       setCampaigns(c.campaigns || []);
       setSettings(s.settings || DEFAULT_SETTINGS);
     } catch (error) {
@@ -777,6 +778,30 @@ export function useWhatsAppManager() {
     }
   }
 
+  async function deleteConversation(contactNumber) {
+    const yes = window.confirm(`Delete chat with "${contactNumber}"? This will remove all messages in this conversation.`);
+    if (!yes) return false;
+
+    setBusy(`delete-conversation-${contactNumber}`);
+    try {
+      await deleteConversationApi(token, contactNumber);
+      setNotice({ type: "success", text: "Chat deleted." });
+      
+      if (activeConversationNumber === contactNumber) {
+        setActiveConversationNumber("");
+        setConversationMessages([]);
+      }
+      
+      await loadConversations({ preserveSelection: false });
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function deleteCampaign(campaign) {
     const yes = window.confirm(`Delete campaign "${campaign.title}"? This will also remove all its messages.`);
     if (!yes) return;
@@ -813,11 +838,11 @@ export function useWhatsAppManager() {
     }
   }
 
-  async function createBusinessCategory(payload) {
-    setBusy("create-business-category");
+  async function createContactCategory(payload) {
+    setBusy("create-contact-category");
     try {
-      await createBusinessCategoryApi(token, payload);
-      setNotice({ type: "success", text: "Business category created." });
+      await createContactCategoryApi(token, payload);
+      setNotice({ type: "success", text: "Contact category created." });
       await refreshAll();
       return true;
     } catch (error) {
@@ -828,14 +853,14 @@ export function useWhatsAppManager() {
     }
   }
 
-  async function deleteBusinessCategory(category) {
+  async function deleteContactCategory(category) {
     const yes = window.confirm(`Delete category "${category.name}"?`);
     if (!yes) return false;
 
-    setBusy(`delete-business-category-${category._id}`);
+    setBusy(`delete-contact-category-${category._id}`);
     try {
-      await deleteBusinessCategoryApi(token, category._id);
-      setNotice({ type: "success", text: "Business category deleted." });
+      await deleteContactCategoryApi(token, category._id);
+      setNotice({ type: "success", text: "Contact category deleted." });
       await refreshAll();
       return true;
     } catch (error) {
@@ -846,11 +871,11 @@ export function useWhatsAppManager() {
     }
   }
 
-  async function createBusiness(payload) {
-    setBusy("create-business");
+  async function createContact(payload) {
+    setBusy("create-contact");
     try {
-      await createBusinessApi(token, payload);
-      setNotice({ type: "success", text: "Business saved." });
+      await createContactApi(token, payload);
+      setNotice({ type: "success", text: "Contact saved." });
       await refreshAll();
       return true;
     } catch (error) {
@@ -861,13 +886,13 @@ export function useWhatsAppManager() {
     }
   }
 
-  async function bulkInsertBusinesses(payload) {
-    setBusy("bulk-business-json");
+  async function bulkInsertContacts(payload) {
+    setBusy("bulk-contact-json");
     try {
-      const response = await bulkInsertBusinessesApi(token, payload);
+      const response = await bulkInsertContactsApi(token, payload);
       setNotice({
         type: "success",
-        text: `${response.insertedCount || 0} business records inserted.`,
+        text: `${response.insertedCount || 0} contact records inserted.`,
       });
       await refreshAll();
       return response;
@@ -882,14 +907,14 @@ export function useWhatsAppManager() {
     }
   }
 
-  async function deleteBusiness(business) {
-    const yes = window.confirm(`Delete business "${business.businessName}"?`);
+  async function deleteContact(contact) {
+    const yes = window.confirm(`Delete contact "${contact.contactName || contact.businessName}"?`);
     if (!yes) return false;
 
-    setBusy(`delete-business-${business._id}`);
+    setBusy(`delete-contact-${contact._id}`);
     try {
-      await deleteBusinessApi(token, business._id);
-      setNotice({ type: "success", text: "Business deleted." });
+      await deleteContactApi(token, contact._id);
+      setNotice({ type: "success", text: "Contact deleted." });
       await refreshAll();
       return true;
     } catch (error) {
@@ -905,8 +930,8 @@ export function useWhatsAppManager() {
     profile,
     accounts,
     templates,
-    businessCategories,
-    businesses,
+    contactCategories,
+    contacts,
     campaigns,
     allMessages,
     conversations,
@@ -957,11 +982,11 @@ export function useWhatsAppManager() {
     removeAccount,
     createTemplate,
     deleteTemplate,
-    createBusinessCategory,
-    deleteBusinessCategory,
-    createBusiness,
-    bulkInsertBusinesses,
-    deleteBusiness,
+    createContactCategory,
+    deleteContactCategory,
+    createContact,
+    bulkInsertContacts,
+    deleteContact,
     createCampaign,
     deleteCampaign,
     updateCampaign,
@@ -972,5 +997,7 @@ export function useWhatsAppManager() {
     openConversation,
     openInbox,
     sendReplyToActiveConversation,
+    deleteConversation,
   };
 }
+
