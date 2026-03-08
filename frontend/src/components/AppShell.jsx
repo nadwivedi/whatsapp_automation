@@ -14,7 +14,7 @@ function AppShell({
   return (
     <div className="min-h-screen">
       <aside
-        className={`fixed left-0 top-0 z-50 h-screen w-[17rem] sm:w-64 transform bg-white/80 shadow-2xl backdrop-blur-xl transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 h-screen w-[17rem] sm:w-64 transform bg-white/80 shadow-2xl backdrop-blur-xl transition-transform duration-300 lg:w-52 lg:translate-x-0 ${
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -22,7 +22,7 @@ function AppShell({
           <div className="mb-4 sm:mb-6 flex items-center justify-between">
             <div>
               <p className="font-heading text-xs uppercase tracking-[0.2em] text-slate-500">WhatsApp</p>
-              <h1 className="font-heading text-lg sm:text-xl font-bold text-slate-900">Message Hub</h1>
+              <h1 className="font-heading text-lg sm:text-xl font-bold text-slate-900">msgsender</h1>
             </div>
             <button
               type="button"
@@ -51,7 +51,7 @@ function AppShell({
                   setMobileMenuOpen(false);
                   if (item.key === "messages") onMessagesRouteOpen();
                 }}
-                className={`flex w-full items-center gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-[15px] font-medium transition-all duration-200 ${
+                className={`flex w-full items-center gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-left text-sm sm:text-[15px] lg:text-[13px] font-medium transition-all duration-200 ${
                   activeRoute === item.key
                     ? "bg-gradient-to-r from-cyan-500 to-emerald-500 text-white shadow-lg shadow-cyan-500/25"
                     : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
@@ -72,7 +72,7 @@ function AppShell({
                 logout();
                 setMobileMenuOpen(false);
               }}
-              className="flex w-full items-center gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-[15px] font-medium text-rose-600 transition hover:bg-rose-50"
+              className="flex w-full items-center gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-[15px] lg:text-[13px] font-medium text-rose-600 transition hover:bg-rose-50"
             >
               <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-rose-100 text-[10px] font-semibold">
                 OUT
@@ -87,7 +87,7 @@ function AppShell({
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
       )}
 
-      <main className="min-h-screen px-3 py-3 sm:px-4 sm:py-4 lg:ml-64 lg:px-6 lg:py-6">
+      <main className="min-h-screen px-3 py-3 sm:px-4 sm:py-4 lg:ml-52 lg:px-6 lg:py-6">
         <div className="mb-3 sm:mb-4 flex items-center lg:hidden">
           <button
             type="button"
@@ -98,7 +98,7 @@ function AppShell({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="font-heading text-lg sm:text-xl font-bold text-slate-900">WhatsApp Hub</h1>
+          <h1 className="font-heading text-lg sm:text-xl font-bold text-slate-900">msgsender</h1>
         </div>
 
         {notice && (
