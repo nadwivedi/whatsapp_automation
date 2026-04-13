@@ -205,8 +205,9 @@ function CampaignsPage({
       </div>
 
       {showCreatePopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowCreatePopup(false)}>
-          <div className="glass-panel-dark w-full max-w-5xl rounded-2xl p-4 sm:p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 px-4 py-6 sm:py-10" onClick={() => setShowCreatePopup(false)}>
+          <div className="mx-auto w-full max-w-6xl">
+          <div className="glass-panel-dark w-full rounded-2xl p-4 sm:p-6 max-h-[calc(100vh-3rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="font-heading text-lg sm:text-xl font-semibold text-slate-800">Add Campaign</h2>
@@ -224,8 +225,8 @@ function CampaignsPage({
               </button>
             </div>
 
-            <form className="grid gap-4 sm:gap-5 lg:grid-cols-2" onSubmit={createCampaign}>
-              <div className="space-y-3">
+            <form className="grid items-start gap-4 sm:gap-5 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.25fr)]" onSubmit={createCampaign}>
+              <div className="space-y-3 lg:sticky lg:top-0">
                 <input
                   className="input-dark"
                   placeholder="Campaign title"
@@ -278,6 +279,50 @@ function CampaignsPage({
                     Template message preview: {selectedTemplate.body}
                   </div>
                 )}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input
+                    className="input-dark"
+                    type="number"
+                    min="1"
+                    max="5000"
+                    placeholder="Total messages to send"
+                    value={campaignForm.maxMessages}
+                    onChange={(e) => setCampaignForm((p) => ({ ...p, maxMessages: e.target.value }))}
+                    required
+                  />
+                  <input
+                    className="input-dark"
+                    type="number"
+                    min="1"
+                    max="20"
+                    placeholder="Messages per person"
+                    value={campaignForm.perRecipientMessageLimit}
+                    onChange={(e) =>
+                      setCampaignForm((p) => ({ ...p, perRecipientMessageLimit: e.target.value }))
+                    }
+                    required
+                  />
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium text-slate-500">Campaign From</p>
+                    <input
+                      className="input-dark"
+                      type="date"
+                      value={campaignForm.dateFrom}
+                      onChange={(e) => setCampaignForm((p) => ({ ...p, dateFrom: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium text-slate-500">Campaign To</p>
+                    <input
+                      className="input-dark"
+                      type="date"
+                      value={campaignForm.dateTo}
+                      onChange={(e) => setCampaignForm((p) => ({ ...p, dateTo: e.target.value }))}
+                    />
+                  </div>
+                </div>
               </div>
               <div className="space-y-3">
                 <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-3">
@@ -317,9 +362,6 @@ function CampaignsPage({
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">Choose Contacts</p>
-                      <p className="text-xs text-slate-500">
-                        Filter by contact category, state, and district, then add contacts to recipients.
-                      </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -327,7 +369,7 @@ function CampaignsPage({
                         className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-white"
                         onClick={selectFilteredContacts}
                       >
-                        Select Filtered
+                        Select All
                       </button>
                       <button
                         type="button"
@@ -349,7 +391,7 @@ function CampaignsPage({
 
                   <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <select
-                      className="input-dark"
+                      className="input-dark text-xs h-9 px-2.5"
                       value={contactCategoryFilter}
                       onChange={(e) => setContactCategoryFilter(e.target.value)}
                     >
@@ -361,7 +403,7 @@ function CampaignsPage({
                       ))}
                     </select>
                     <select
-                      className="input-dark"
+                      className="input-dark text-xs h-9 px-2.5"
                       value={stateFilter}
                       onChange={(e) => {
                         setStateFilter(e.target.value);
@@ -376,7 +418,7 @@ function CampaignsPage({
                       ))}
                     </select>
                     <select
-                      className="input-dark"
+                      className="input-dark text-xs h-9 px-2.5"
                       value={districtFilter}
                       onChange={(e) => setDistrictFilter(e.target.value)}
                     >
@@ -388,7 +430,7 @@ function CampaignsPage({
                       ))}
                     </select>
                     <input
-                      className="input-dark"
+                      className="input-dark text-xs h-9 px-2.5"
                       placeholder="Search name or mobile"
                       value={contactSearch}
                       onChange={(e) => setContactSearch(e.target.value)}
@@ -447,50 +489,6 @@ function CampaignsPage({
                     required
                   />
                 )}
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input
-                    className="input-dark"
-                    type="number"
-                    min="1"
-                    max="5000"
-                    placeholder="Total messages to send"
-                    value={campaignForm.maxMessages}
-                    onChange={(e) => setCampaignForm((p) => ({ ...p, maxMessages: e.target.value }))}
-                    required
-                  />
-                  <input
-                    className="input-dark"
-                    type="number"
-                    min="1"
-                    max="20"
-                    placeholder="Messages per person"
-                    value={campaignForm.perRecipientMessageLimit}
-                    onChange={(e) =>
-                      setCampaignForm((p) => ({ ...p, perRecipientMessageLimit: e.target.value }))
-                    }
-                    required
-                  />
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div>
-                    <p className="mb-1.5 text-xs font-medium text-slate-500">Campaign From</p>
-                    <input
-                      className="input-dark"
-                      type="date"
-                      value={campaignForm.dateFrom}
-                      onChange={(e) => setCampaignForm((p) => ({ ...p, dateFrom: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <p className="mb-1.5 text-xs font-medium text-slate-500">Campaign To</p>
-                    <input
-                      className="input-dark"
-                      type="date"
-                      value={campaignForm.dateTo}
-                      onChange={(e) => setCampaignForm((p) => ({ ...p, dateTo: e.target.value }))}
-                    />
-                  </div>
-                </div>
                 <div className="rounded-xl bg-slate-800/90 p-3 text-xs sm:text-sm text-slate-300">
                   Recipients: <span className="font-heading text-lg text-cyan-400">{recipientsTotal}</span>
                 </div>
@@ -502,6 +500,7 @@ function CampaignsPage({
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}

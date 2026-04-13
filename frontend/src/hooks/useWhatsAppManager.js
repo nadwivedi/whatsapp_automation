@@ -88,6 +88,24 @@ function formatBulkInsertError(error) {
   return `Bulk insert validation failed.\n${preview.join("\n")}`;
 }
 
+function formatDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getDefaultCampaignDates() {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  return {
+    dateFrom: formatDateInputValue(today),
+    dateTo: formatDateInputValue(tomorrow),
+  };
+}
+
 export function useWhatsAppManager() {
   const [token, setToken] = useState("session");
   const [profile, setProfile] = useState(null);
@@ -137,8 +155,7 @@ export function useWhatsAppManager() {
     recipientsText: "",
     maxMessages: "",
     perRecipientMessageLimit: "1",
-    dateFrom: "",
-    dateTo: "",
+    ...getDefaultCampaignDates(),
   });
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
@@ -598,8 +615,7 @@ export function useWhatsAppManager() {
         recipientsText: "",
         maxMessages: "",
         perRecipientMessageLimit: "1",
-        dateFrom: "",
-        dateTo: "",
+        ...getDefaultCampaignDates(),
       }));
       setNotice({ type: "success", text: "Campaign queued." });
       await refreshAll();
