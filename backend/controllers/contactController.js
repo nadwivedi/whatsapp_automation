@@ -129,6 +129,10 @@ function resolveCategoryFromLookup(categoryInput, lookup) {
   return lookup.byNameKey.get(token.toLowerCase()) || null;
 }
 
+function buildCategoryMobileKey(categoryId, mobile) {
+  return `${String(categoryId)}::${normalizeMobile(mobile)}`;
+}
+
 async function listContacts(req, res) {
   const contacts = await Contact.find({ userId: req.user._id })
     .populate("contactCategory", "name")
@@ -149,6 +153,17 @@ async function createContact(req, res) {
   const category = resolveCategoryFromLookup(payload.categoryInput, lookup);
   if (!category) {
     return res.status(400).json({ message: "Selected contact category is invalid." });
+  }
+
+  const existingContact = await Contact.findOne({
+    userId: req.user._id,
+    contactCategory: category._id,
+    mobile: payload.mobile,
+  }).select("_id name mobile");
+  if (existingContact) {
+    return res.status(409).json({
+      message: "This mobile number already exists in the selected contact category.",
+    });
   }
 
   const contact = await Contact.create({
@@ -207,8 +222,10 @@ async function bulkInsertContacts(req, res) {
     ? resolveCategoryFromLookup(defaultCategoryInput, lookup)
     : null;
 
-  const docs = [];
+  const normalizedDocs = [];
   const errors = [];
+  const duplicateKeysInPayload = new Set();
+  const duplicateItems = [];
 
   rawItems.forEach((item, index) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -242,7 +259,19 @@ async function bulkInsertContacts(req, res) {
       return;
     }
 
-    docs.push({
+    const dedupeKey = buildCategoryMobileKey(category._id, payload.mobile);
+    if (duplicateKeysInPayload.has(dedupeKey)) {
+      duplicateItems.push({
+        index,
+        mobile: payload.mobile,
+        contactCategory: category.name,
+        reason: "Duplicate mobile number in the same category within this upload.",
+      });
+      return;
+    }
+    duplicateKeysInPayload.add(dedupeKey);
+
+    normalizedDocs.push({
       userId: req.user._id,
       name: payload.name,
       mobile: payload.mobile,
@@ -262,7 +291,36 @@ async function bulkInsertContacts(req, res) {
     });
   }
 
-  const inserted = await Contact.insertMany(docs);
+  const categoryIds = [...new Set(normalizedDocs.map((doc) => String(doc.contactCategory)))];
+  const mobiles = [...new Set(normalizedDocs.map((doc) => doc.mobile))];
+  const existingContacts = normalizedDocs.length
+    ? await Contact.find({
+      userId: req.user._id,
+      contactCategory: { $in: categoryIds },
+      mobile: { $in: mobiles },
+    }).select("contactCategory mobile name")
+    : [];
+
+  const existingKeys = new Set(
+    existingContacts.map((contact) => buildCategoryMobileKey(contact.contactCategory, contact.mobile)),
+  );
+
+  const docs = [];
+  for (const doc of normalizedDocs) {
+    const dedupeKey = buildCategoryMobileKey(doc.contactCategory, doc.mobile);
+    if (existingKeys.has(dedupeKey)) {
+      const category = lookup.byId.get(String(doc.contactCategory));
+      duplicateItems.push({
+        mobile: doc.mobile,
+        contactCategory: category?.name || String(doc.contactCategory),
+        reason: "Mobile number already exists in this contact category.",
+      });
+      continue;
+    }
+    docs.push(doc);
+  }
+
+  const inserted = docs.length ? await Contact.insertMany(docs) : [];
   const insertedIds = inserted.map((doc) => doc._id);
   const contacts = await Contact.find({
     _id: { $in: insertedIds },
@@ -273,11 +331,15 @@ async function bulkInsertContacts(req, res) {
 
   return res.status(201).json({
     insertedCount: inserted.length,
+    skippedDuplicateCount: duplicateItems.length,
+    duplicates: duplicateItems.slice(0, 100),
     contacts: contacts.slice(0, 100),
     message:
       inserted.length > 100
         ? "Contacts inserted. Response includes first 100 records."
-        : "Contacts inserted.",
+        : duplicateItems.length
+          ? "Contacts inserted. Duplicate mobile numbers in the same category were skipped."
+          : "Contacts inserted.",
   });
 }
 

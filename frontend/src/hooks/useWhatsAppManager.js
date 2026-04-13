@@ -3,7 +3,10 @@ import { getMe, login, logout as logoutApi, register } from "../api/authApi";
 import {
   createAccount as createAccountApi,
   deleteAccount as deleteAccountApi,
+  findAccountGroupsByNumber as findAccountGroupsByNumberApi,
+  getAccountGroupParticipants as getAccountGroupParticipantsApi,
   getAccountQr,
+  listAccountGroups as listAccountGroupsApi,
   listAccounts,
   startAccount,
   stopAccount,
@@ -492,6 +495,33 @@ export function useWhatsAppManager() {
       setNotice({ type: "error", text: error.message });
     } finally {
       setBusy("");
+    }
+  }
+
+  async function listAccountGroups(accountId) {
+    try {
+      return await listAccountGroupsApi(token, accountId);
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      throw error;
+    }
+  }
+
+  async function findGroupsByNumber(accountId, mobileNumber) {
+    try {
+      return await findAccountGroupsByNumberApi(token, accountId, mobileNumber);
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      throw error;
+    }
+  }
+
+  async function getGroupParticipants(accountId, groupId) {
+    try {
+      return await getAccountGroupParticipantsApi(token, accountId, groupId);
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      throw error;
     }
   }
 
@@ -996,6 +1026,9 @@ export function useWhatsAppManager() {
     showQr,
     refreshQrPreview,
     removeAccount,
+    listAccountGroups,
+    findGroupsByNumber,
+    getGroupParticipants,
     createTemplate,
     deleteTemplate,
     createContactCategory,

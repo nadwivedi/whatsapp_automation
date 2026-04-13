@@ -30,6 +30,21 @@ export function getAccountQr(token, accountId) {
   return apiRequest(`/accounts/${accountId}/qr`, { token });
 }
 
+export function listAccountGroups(token, accountId) {
+  return apiRequest(`/accounts/${accountId}/groups`, { token });
+}
+
+export function findAccountGroupsByNumber(token, accountId, mobileNumber) {
+  const query = new URLSearchParams({ mobileNumber }).toString();
+  return apiRequest(`/accounts/${accountId}/groups/search-by-number?${query}`, { token });
+}
+
+export function getAccountGroupParticipants(token, accountId, groupId) {
+  return apiRequest(`/accounts/${accountId}/groups/${encodeURIComponent(groupId)}/participants`, {
+    token,
+  });
+}
+
 export function deleteAccount(token, accountId) {
   return apiRequest(`/accounts/${accountId}`, { token, options: { method: "DELETE" } });
 }

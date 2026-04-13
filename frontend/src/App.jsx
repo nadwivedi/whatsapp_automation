@@ -80,6 +80,7 @@ function App() {
           refreshing={app.refreshing}
           refreshAll={app.refreshAll}
           busy={app.busy}
+          accounts={app.accounts}
           contactCategories={app.contactCategories}
           contacts={app.contacts}
           createContact={app.createContact}
@@ -88,6 +89,9 @@ function App() {
           createContactCategory={app.createContactCategory}
           updateContactCategory={app.updateContactCategory}
           deleteContactCategory={app.deleteContactCategory}
+          listAccountGroups={app.listAccountGroups}
+          findGroupsByNumber={app.findGroupsByNumber}
+          getGroupParticipants={app.getGroupParticipants}
           dashboardLoading={app.dashboardLoading}
         />
       );

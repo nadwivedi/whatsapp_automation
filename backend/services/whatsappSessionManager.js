@@ -485,6 +485,168 @@ class WhatsappSessionManager {
     }
   }
 
+  getParticipantSerializedId(participant) {
+    return (
+      participant?.id?._serialized ||
+      `${participant?.id?.user || ""}@${participant?.id?.server || ""}` ||
+      ""
+    );
+  }
+
+  getParticipantNumber(participant) {
+    return (
+      this.normalizeRecipient(String(participant?.id?.user || "")) ||
+      this.extractUserFromChatId(this.getParticipantSerializedId(participant)) ||
+      ""
+    );
+  }
+
+  async ensureGroupChat(client, groupId) {
+    let chat;
+    try {
+      chat = await client.getChatById(groupId);
+    } catch (_error) {
+      throw new Error("Group not found.");
+    }
+
+    if (!chat?.isGroup) {
+      throw new Error("Selected chat is not a WhatsApp group.");
+    }
+
+    return chat;
+  }
+
+  buildGroupSummary(chat) {
+    const participants = Array.isArray(chat?.participants)
+      ? chat.participants
+      : Array.isArray(chat?.groupMetadata?.participants)
+        ? chat.groupMetadata.participants
+        : [];
+
+    return {
+      id: chat?.id?._serialized || "",
+      name: String(chat?.name || chat?.formattedTitle || "Unnamed group").trim() || "Unnamed group",
+      participantCount: participants.length,
+    };
+  }
+
+  async listGroups(accountId) {
+    const client = this.getClient(accountId);
+    if (!client) {
+      throw new Error("WhatsApp session is not active for this account.");
+    }
+
+    const chats = await client.getChats();
+    return chats
+      .filter((chat) => chat?.isGroup)
+      .map((chat) => this.buildGroupSummary(chat))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async findGroupsByParticipantNumber(accountId, mobileNumber) {
+    const client = this.getClient(accountId);
+    if (!client) {
+      throw new Error("WhatsApp session is not active for this account.");
+    }
+
+    const normalized = this.normalizeRecipient(mobileNumber);
+    if (!normalized) {
+      throw new Error("Mobile number is invalid.");
+    }
+
+    const chats = await client.getChats();
+    return chats
+      .filter((chat) => {
+        if (!chat?.isGroup) {
+          return false;
+        }
+
+        const participants = Array.isArray(chat?.participants)
+          ? chat.participants
+          : Array.isArray(chat?.groupMetadata?.participants)
+            ? chat.groupMetadata.participants
+            : [];
+
+        return participants.some((participant) => this.getParticipantNumber(participant) === normalized);
+      })
+      .map((chat) => this.buildGroupSummary(chat))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async getGroupParticipants(accountId, groupId) {
+    const client = this.getClient(accountId);
+    if (!client) {
+      throw new Error("WhatsApp session is not active for this account.");
+    }
+
+    const chat = await this.ensureGroupChat(client, groupId);
+    const group = this.buildGroupSummary(chat);
+    const participants = Array.isArray(chat?.participants)
+      ? chat.participants
+      : Array.isArray(chat?.groupMetadata?.participants)
+        ? chat.groupMetadata.participants
+        : [];
+
+    const rows = await Promise.all(
+      participants.map(async (participant) => {
+        const participantId = this.getParticipantSerializedId(participant);
+        const mobile = this.getParticipantNumber(participant);
+        let contact = null;
+
+        if (participantId) {
+          try {
+            contact = await client.getContactById(participantId);
+          } catch (_error) {
+            contact = null;
+          }
+        }
+
+        const accountName =
+          String(
+            contact?.name ||
+            contact?.pushname ||
+            contact?.shortName ||
+            contact?.verifiedName ||
+            "",
+          ).trim() || mobile;
+
+        return {
+          id: participantId || mobile,
+          mobile,
+          name: accountName,
+          pushName: String(contact?.pushname || "").trim(),
+          shortName: String(contact?.shortName || "").trim(),
+          verifiedName: String(contact?.verifiedName || "").trim(),
+          isAdmin: Boolean(participant?.isAdmin || participant?.isSuperAdmin),
+          isSuperAdmin: Boolean(participant?.isSuperAdmin),
+        };
+      }),
+    );
+
+    const uniqueParticipants = Array.from(
+      rows.reduce((map, participant) => {
+        const key = participant.mobile || participant.id;
+        if (!key) {
+          return map;
+        }
+        if (!map.has(key)) {
+          map.set(key, participant);
+        }
+        return map;
+      }, new Map()).values(),
+    ).sort((a, b) => {
+      if (a.isAdmin !== b.isAdmin) {
+        return a.isAdmin ? -1 : 1;
+      }
+      return (a.name || "").localeCompare(b.name || "");
+    });
+
+    return {
+      group,
+      participants: uniqueParticipants,
+    };
+  }
+
   async restoreActiveSessions() {
     const accounts = await WaAccount.find({
       isActive: true,

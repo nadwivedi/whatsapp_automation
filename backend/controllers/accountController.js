@@ -228,6 +228,59 @@ async function getAccountQr(req, res) {
   });
 }
 
+async function getOwnedAccountOr404(ownerId, accountId, res) {
+  const account = await WaAccount.findOne({ _id: accountId, owner: ownerId });
+  if (!account) {
+    res.status(404).json({ message: "Account not found." });
+    return null;
+  }
+  return account;
+}
+
+async function listAccountGroups(req, res) {
+  const account = await getOwnedAccountOr404(req.user._id, req.params.accountId, res);
+  if (!account) {
+    return;
+  }
+
+  const groups = await whatsappSessionManager.listGroups(account._id);
+  return res.json({ groups });
+}
+
+async function findAccountGroupsByNumber(req, res) {
+  const account = await getOwnedAccountOr404(req.user._id, req.params.accountId, res);
+  if (!account) {
+    return;
+  }
+
+  const mobileNumber = String(req.query.mobileNumber || "").trim();
+  if (!mobileNumber) {
+    return res.status(400).json({ message: "mobileNumber is required." });
+  }
+
+  const groups = await whatsappSessionManager.findGroupsByParticipantNumber(
+    account._id,
+    mobileNumber,
+  );
+
+  return res.json({ groups });
+}
+
+async function getAccountGroupParticipants(req, res) {
+  const account = await getOwnedAccountOr404(req.user._id, req.params.accountId, res);
+  if (!account) {
+    return;
+  }
+
+  const groupId = decodeURIComponent(String(req.params.groupId || ""));
+  if (!groupId) {
+    return res.status(400).json({ message: "groupId is required." });
+  }
+
+  const payload = await whatsappSessionManager.getGroupParticipants(account._id, groupId);
+  return res.json(payload);
+}
+
 async function deleteAccount(req, res) {
   const { accountId } = req.params;
   const account = await WaAccount.findOne({ _id: accountId, owner: req.user._id });
@@ -277,6 +330,9 @@ module.exports = {
   stopAccountSession,
   updateDailyLimit,
   getAccountQr,
+  listAccountGroups,
+  findAccountGroupsByNumber,
+  getAccountGroupParticipants,
   deleteAccount,
   deleteDummyAccounts,
 };
