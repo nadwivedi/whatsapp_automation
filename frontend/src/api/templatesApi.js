@@ -11,6 +11,13 @@ export function createTemplate(token, payload) {
   });
 }
 
+export function updateTemplate(token, templateId, payload) {
+  return apiRequest(`/templates/${templateId}`, {
+    token,
+    options: { method: "PATCH", body: JSON.stringify(payload) },
+  });
+}
+
 export function deleteTemplate(token, templateId) {
   return apiRequest(`/templates/${templateId}`, {
     token,

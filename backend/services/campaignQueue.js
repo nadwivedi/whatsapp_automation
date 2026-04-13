@@ -1,6 +1,7 @@
 ﻿const { Campaign } = require("../models/Campaign");
 const { CampaignMessage } = require("../models/CampaignMessage");
 const { WaAccount } = require("../models/WaAccount");
+const { Contact } = require("../models/contact");
 const {
   UserSetting,
   DEFAULT_PER_MOBILE_DAILY_LIMIT,
@@ -40,6 +41,27 @@ function spinMessage(text) {
     const options = group.split("|").map((s) => s.trim()).filter(Boolean);
     if (!options.length) return "";
     return options[Math.floor(Math.random() * options.length)];
+  });
+}
+
+function renderContactVariables(text, contact, recipient) {
+  if (!text) return text;
+
+  const contactName = String(contact?.name || "").trim();
+  const firstName = contactName ? contactName.split(/\s+/)[0] : "Customer";
+  const replacements = {
+    name: contactName || "Customer",
+    contact_name: contactName || "Customer",
+    business_name: contactName || "Customer",
+    first_name: firstName,
+    mobile: String(recipient || "").trim(),
+  };
+
+  return text.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (match, token) => {
+    const key = String(token || "").toLowerCase();
+    return Object.prototype.hasOwnProperty.call(replacements, key)
+      ? replacements[key]
+      : match;
   });
 }
 
@@ -419,6 +441,7 @@ class CampaignQueue {
       }
 
       const accountCache = new Map();
+      const contactCache = new Map();
       let selectedMessage = null;
       let selectedAccount = null;
       let lastBlockReason = "No available account can send right now.";
@@ -534,9 +557,22 @@ class CampaignQueue {
           }
         }
 
-        // ── Anti-Bot: Message spinning ──
-        let messageText = selectedMessage.text;
-        if (antiBot.antiBotEnabled && antiBot.messageSpinning) {
+        // Render contact variables before optional message spinning.
+        let contact = contactCache.get(selectedMessage.recipient);
+        if (contact === undefined) {
+          contact = await Contact.findOne({
+            userId: campaign.owner,
+            mobile: selectedMessage.recipient,
+          }).select("name mobile");
+          contactCache.set(selectedMessage.recipient, contact || null);
+        }
+
+        let messageText = renderContactVariables(
+          selectedMessage.text,
+          contact,
+          selectedMessage.recipient,
+        );
+        if (antiBot.messageSpinning) {
           messageText = spinMessage(messageText);
         }
 

@@ -12,7 +12,12 @@ import {
   stopAccount,
   updateAccountDailyLimit,
 } from "../api/accountsApi";
-import { createTemplate as createTemplateApi, listTemplates, deleteTemplate as deleteTemplateApi } from "../api/templatesApi";
+import {
+  createTemplate as createTemplateApi,
+  updateTemplate as updateTemplateApi,
+  listTemplates,
+  deleteTemplate as deleteTemplateApi,
+} from "../api/templatesApi";
 import {
   createContactCategory as createContactCategoryApi,
   updateContactCategory as updateContactCategoryApi,
@@ -562,8 +567,10 @@ export function useWhatsAppManager() {
       });
       setNotice({ type: "success", text: "Template created." });
       await refreshAll();
+      return true;
     } catch (error) {
       setNotice({ type: "error", text: error.message });
+      return false;
     } finally {
       setBusy("");
     }
@@ -825,6 +832,21 @@ export function useWhatsAppManager() {
     }
   }
 
+  async function updateTemplate(templateId, payload) {
+    setBusy(`update-template-${templateId}`);
+    try {
+      await updateTemplateApi(token, templateId, payload);
+      setNotice({ type: "success", text: "Template updated." });
+      await refreshAll();
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function deleteConversation(contactNumber) {
     const yes = window.confirm(`Delete chat with "${contactNumber}"? This will remove all messages in this conversation.`);
     if (!yes) return false;
@@ -1046,6 +1068,7 @@ export function useWhatsAppManager() {
     findGroupsByNumber,
     getGroupParticipants,
     createTemplate,
+    updateTemplate,
     deleteTemplate,
     createContactCategory,
     updateContactCategory,

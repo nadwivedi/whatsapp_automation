@@ -65,6 +65,7 @@ function App() {
           templateForm={app.templateForm}
           setTemplateForm={app.setTemplateForm}
           createTemplate={app.createTemplate}
+          updateTemplate={app.updateTemplate}
           deleteTemplate={app.deleteTemplate}
           busy={app.busy}
           templates={app.templates}
