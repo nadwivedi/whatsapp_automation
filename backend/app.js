@@ -11,16 +11,20 @@ const contactRoutes = require("./routes/contactRoutes");
 const replyRoutes = require("./routes/replyRoutes");
 
 const app = express();
-const localOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+const defaultCorsOrigins = [
+  "https://msgsender.cloud",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
 const configuredCorsOrigins = String(process.env.CORS_ORIGINS || "")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
+const allowedCorsOrigins = [...new Set([...defaultCorsOrigins, ...configuredCorsOrigins])];
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
-  if (localOriginPattern.test(origin)) return true;
-  return configuredCorsOrigins.includes(origin);
+  return allowedCorsOrigins.includes(origin);
 }
 
 app.disable("x-powered-by");
