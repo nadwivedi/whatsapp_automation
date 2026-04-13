@@ -1,5 +1,20 @@
 const mongoose = require("mongoose");
 
+function normalizeContactMobile(raw) {
+  const digits = String(raw || "").replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.length === 12 && digits.startsWith("91")) {
+    return digits.slice(2);
+  }
+  if (digits.length === 11 && digits.startsWith("0")) {
+    return digits.slice(1);
+  }
+  if (digits.length === 10) {
+    return digits;
+  }
+  return digits;
+}
+
 async function renameCollectionIfNeeded(db, names, from, to) {
   if (!names.has(from) || names.has(to)) return false;
   await db.collection(from).rename(to);
@@ -36,6 +51,20 @@ async function migrateContactsCollection(db, names) {
 
   await contacts.createIndex({ userId: 1, name: 1, mobile: 1 });
   await contacts.createIndex({ contactCategory: 1 });
+
+  const rows = await contacts.find(
+    { mobile: { $exists: true, $type: "string", $ne: "" } },
+    { projection: { _id: 1, mobile: 1 } },
+  ).toArray();
+
+  for (const row of rows) {
+    const normalizedMobile = normalizeContactMobile(row.mobile);
+    if (!normalizedMobile || normalizedMobile === row.mobile) continue;
+    await contacts.updateOne(
+      { _id: row._id },
+      { $set: { mobile: normalizedMobile } },
+    );
+  }
 }
 
 async function runDataMigrations() {

@@ -2,6 +2,7 @@
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const { WaAccount } = require("../models/WaAccount");
 const replyInboxService = require("./replyInboxService");
+const { normalizeNumber, toWhatsAppRecipient } = require("../utils/phone");
 const AUTH_DATA_PATH = process.env.AUTH_DATA_PATH || process.env.WHATSAPP_AUTH_DIR || ".wwebjs_auth";
 
 class WhatsappSessionManager {
@@ -247,10 +248,11 @@ class WhatsappSessionManager {
   }
 
   normalizeRecipient(recipient) {
-    if (!recipient || typeof recipient !== "string") {
-      return "";
-    }
-    return recipient.replace(/[^\d]/g, "");
+    return normalizeNumber(String(recipient || "")) || "";
+  }
+
+  toSendableRecipient(recipient) {
+    return toWhatsAppRecipient(String(recipient || "")) || "";
   }
 
   extractUserFromChatId(chatId) {
@@ -327,7 +329,7 @@ class WhatsappSessionManager {
       throw new Error("WhatsApp session is not active for this account.");
     }
 
-    const normalized = this.normalizeRecipient(recipient);
+    const normalized = this.toSendableRecipient(recipient);
     if (!normalized) {
       throw new Error("Recipient number is invalid.");
     }
@@ -388,7 +390,7 @@ class WhatsappSessionManager {
       throw new Error("WhatsApp session is not active for this account.");
     }
 
-    const normalized = this.normalizeRecipient(recipient);
+    const normalized = this.toSendableRecipient(recipient);
     if (!normalized) {
       throw new Error("Recipient number is invalid.");
     }
@@ -443,7 +445,7 @@ class WhatsappSessionManager {
       return;
     }
 
-    const normalized = this.normalizeRecipient(recipient);
+    const normalized = this.toSendableRecipient(recipient);
     if (!normalized) {
       return;
     }
@@ -469,7 +471,7 @@ class WhatsappSessionManager {
       return;
     }
 
-    const normalized = this.normalizeRecipient(recipient);
+    const normalized = this.toSendableRecipient(recipient);
     if (!normalized) {
       return;
     }

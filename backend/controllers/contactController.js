@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const { Contact } = require("../models/contact");
 const { ContactCategory } = require("../models/contactCategory");
+const { normalizeNumber } = require("../utils/phone");
 
 function normalizeText(raw, fallback = "") {
   if (raw == null) return fallback;
@@ -9,7 +10,7 @@ function normalizeText(raw, fallback = "") {
 }
 
 function normalizeMobile(raw) {
-  return normalizeText(raw).replace(/[^\d+]/g, "");
+  return normalizeNumber(normalizeText(raw)) || "";
 }
 
 function normalizeEmail(raw) {
@@ -18,7 +19,7 @@ function normalizeEmail(raw) {
 }
 
 function isValidMobile(mobile) {
-  return /^\+?\d{8,15}$/.test(mobile);
+  return /^\d{10}$/.test(mobile);
 }
 
 function isValidEmail(email) {
@@ -80,7 +81,7 @@ function validateContactPayload(payload) {
   if (!isValidMobile(payload.mobile)) {
     errors.push({
       field: "mobile",
-      message: "mobile must be a valid number with 8 to 15 digits.",
+      message: "mobile must be a valid 10-digit number.",
     });
   }
 

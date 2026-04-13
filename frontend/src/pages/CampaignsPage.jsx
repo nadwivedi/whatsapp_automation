@@ -1,4 +1,5 @@
 ﻿import { useState } from "react";
+import { useMemo } from "react";
 import { formatDate } from "../utils/formatters";
 import { campaignTone } from "../utils/tones";
 
@@ -13,6 +14,8 @@ function CampaignsPage({
   busy,
   accounts,
   templates,
+  contactCategories,
+  contacts,
   recipientsTotal,
   campaigns,
   dashboardLoading,
@@ -25,6 +28,12 @@ function CampaignsPage({
   const [showCreatePopup, setShowCreatePopup] = useState(false);
   const [showEditPopup, setShowEditPopup] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [contactCategoryFilter, setContactCategoryFilter] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+  const [districtFilter, setDistrictFilter] = useState("");
+  const [contactSearch, setContactSearch] = useState("");
+  const [selectedContactIds, setSelectedContactIds] = useState([]);
+  const [recipientMode, setRecipientMode] = useState("contacts");
   const [editForm, setEditForm] = useState({
     title: "",
     messageBody: "",
@@ -36,6 +45,99 @@ function CampaignsPage({
   const eligibleAccounts = accounts.filter(
     (account) => account.isActive !== false && account.status === "authenticated",
   );
+  const stateOptions = useMemo(() => {
+    const values = new Map();
+    contacts.forEach((contact) => {
+      const state = String(contact?.state || "").trim();
+      if (!state) return;
+      const key = state.toLowerCase();
+      if (!values.has(key)) values.set(key, state);
+    });
+    return [...values.values()].sort((a, b) => a.localeCompare(b));
+  }, [contacts]);
+  const districtOptions = useMemo(() => {
+    const values = new Map();
+    const source = stateFilter
+      ? contacts.filter(
+        (contact) =>
+          String(contact?.state || "").trim().toLowerCase() === stateFilter.toLowerCase(),
+      )
+      : contacts;
+
+    source.forEach((contact) => {
+      const district = String(contact?.district || "").trim();
+      if (!district) return;
+      const key = district.toLowerCase();
+      if (!values.has(key)) values.set(key, district);
+    });
+
+    return [...values.values()].sort((a, b) => a.localeCompare(b));
+  }, [contacts, stateFilter]);
+  const filteredContacts = useMemo(() => {
+    const query = contactSearch.trim().toLowerCase();
+    return contacts.filter((contact) => {
+      const matchCategory =
+        !contactCategoryFilter || contact?.contactCategory?._id === contactCategoryFilter;
+      const matchState =
+        !stateFilter ||
+        String(contact?.state || "").trim().toLowerCase() === stateFilter.toLowerCase();
+      const matchDistrict =
+        !districtFilter ||
+        String(contact?.district || "").trim().toLowerCase() === districtFilter.toLowerCase();
+      const matchQuery =
+        !query ||
+        String(contact?.name || "").toLowerCase().includes(query) ||
+        String(contact?.mobile || "").toLowerCase().includes(query) ||
+        String(contact?.contactCategory?.name || "").toLowerCase().includes(query);
+
+      return matchCategory && matchState && matchDistrict && matchQuery;
+    });
+  }, [contacts, contactCategoryFilter, stateFilter, districtFilter, contactSearch]);
+  const selectedContacts = useMemo(
+    () => filteredContacts.filter((contact) => selectedContactIds.includes(contact._id)),
+    [filteredContacts, selectedContactIds],
+  );
+
+  function parseRecipients(rawText) {
+    return String(rawText || "")
+      .split(/[\n,;]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function appendRecipients(mobiles) {
+    const existing = parseRecipients(campaignForm.recipientsText);
+    const seen = new Set(existing.map((item) => item.toLowerCase()));
+    const next = [...existing];
+
+    mobiles.forEach((mobile) => {
+      const value = String(mobile || "").trim();
+      if (!value) return;
+      const key = value.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      next.push(value);
+    });
+
+    setCampaignForm((prev) => ({
+      ...prev,
+      recipientsText: next.join("\n"),
+    }));
+  }
+
+  function toggleContactSelection(contactId) {
+    setSelectedContactIds((prev) =>
+      prev.includes(contactId) ? prev.filter((id) => id !== contactId) : [...prev, contactId],
+    );
+  }
+
+  function selectFilteredContacts() {
+    setSelectedContactIds(filteredContacts.map((contact) => contact._id));
+  }
+
+  function clearSelectedContacts() {
+    setSelectedContactIds([]);
+  }
 
   function openEditPopup(campaign) {
     setEditingCampaign(campaign);
@@ -178,13 +280,173 @@ function CampaignsPage({
                 )}
               </div>
               <div className="space-y-3">
-                <textarea
-                  className="input-dark min-h-[230px]"
-                  placeholder="Enter recipients (one per line, comma-separated, or semicolon-separated)"
-                  value={campaignForm.recipientsText}
-                  onChange={(e) => setCampaignForm((p) => ({ ...p, recipientsText: e.target.value }))}
-                  required
-                />
+                <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">Recipient Source</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Choose `Contacts` or `Recipient Box`.
+                    </p>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                        recipientMode === "contacts"
+                          ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                      onClick={() => setRecipientMode("contacts")}
+                    >
+                      Contacts
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                        recipientMode === "manual"
+                          ? "border-cyan-500 bg-cyan-50 text-cyan-700"
+                          : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                      onClick={() => setRecipientMode("manual")}
+                    >
+                      Recipient Box
+                    </button>
+                  </div>
+                </div>
+
+                <div className={`${recipientMode === "contacts" ? "block" : "hidden"} rounded-xl border border-slate-200 bg-slate-50/90 p-3`}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Choose Contacts</p>
+                      <p className="text-xs text-slate-500">
+                        Filter by contact category, state, and district, then add contacts to recipients.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-white"
+                        onClick={selectFilteredContacts}
+                      >
+                        Select Filtered
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-white"
+                        onClick={clearSelectedContacts}
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg bg-cyan-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => appendRecipients(selectedContacts.map((contact) => contact.mobile))}
+                        disabled={!selectedContacts.length}
+                      >
+                        Add Selected
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <select
+                      className="input-dark"
+                      value={contactCategoryFilter}
+                      onChange={(e) => setContactCategoryFilter(e.target.value)}
+                    >
+                      <option value="">All categories</option>
+                      {contactCategories.map((category) => (
+                        <option key={category._id} value={category._id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="input-dark"
+                      value={stateFilter}
+                      onChange={(e) => {
+                        setStateFilter(e.target.value);
+                        setDistrictFilter("");
+                      }}
+                    >
+                      <option value="">All states</option>
+                      {stateOptions.map((state) => (
+                        <option key={state} value={state}>
+                          {state}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="input-dark"
+                      value={districtFilter}
+                      onChange={(e) => setDistrictFilter(e.target.value)}
+                    >
+                      <option value="">All districts</option>
+                      {districtOptions.map((district) => (
+                        <option key={district} value={district}>
+                          {district}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      className="input-dark"
+                      placeholder="Search name or mobile"
+                      value={contactSearch}
+                      onChange={(e) => setContactSearch(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                    <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-xs text-slate-500">
+                      <span>Filtered contacts: {filteredContacts.length}</span>
+                      <button
+                        type="button"
+                        className="font-medium text-cyan-700 transition hover:text-cyan-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => appendRecipients(filteredContacts.map((contact) => contact.mobile))}
+                        disabled={!filteredContacts.length}
+                      >
+                        Add All Filtered
+                      </button>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto">
+                      {filteredContacts.length ? (
+                        filteredContacts.map((contact) => (
+                          <label
+                            key={contact._id}
+                            className="flex cursor-pointer items-start gap-3 border-b border-slate-100 px-3 py-2 last:border-b-0 hover:bg-slate-50"
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1"
+                              checked={selectedContactIds.includes(contact._id)}
+                              onChange={() => toggleContactSelection(contact._id)}
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800">{contact.name}</p>
+                              <p className="text-xs text-slate-500">
+                                {contact.mobile}
+                                {contact.contactCategory?.name ? ` • ${contact.contactCategory.name}` : ""}
+                                {contact.state ? ` • ${contact.state}` : ""}
+                                {contact.district ? ` • ${contact.district}` : ""}
+                              </p>
+                            </div>
+                          </label>
+                        ))
+                      ) : (
+                        <p className="px-3 py-4 text-sm text-slate-500">No contacts match these filters.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {recipientMode === "manual" && (
+                  <textarea
+                    className="input-dark min-h-[130px]"
+                    placeholder="Enter recipients manually, one per line or comma-separated"
+                    value={campaignForm.recipientsText}
+                    onChange={(e) => setCampaignForm((p) => ({ ...p, recipientsText: e.target.value }))}
+                    required
+                  />
+                )}
                 <div className="grid gap-3 md:grid-cols-2">
                   <input
                     className="input-dark"

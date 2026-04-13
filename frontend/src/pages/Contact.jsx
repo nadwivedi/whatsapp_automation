@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import GroupContactExtractor from "../components/GroupContactExtractor";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -164,7 +163,6 @@ function Contact({
   refreshing, refreshAll, busy, accounts, contactCategories, contacts,
   createContact, bulkInsertContacts, deleteContact,
   createContactCategory, updateContactCategory, deleteContactCategory,
-  listAccountGroups, findGroupsByNumber, getGroupParticipants,
   dashboardLoading,
 }) {
   // ── UI State ──
@@ -469,14 +467,6 @@ function Contact({
       `}</style>
 
       <div className="cp-wrap">
-        <GroupContactExtractor
-          accounts={accounts}
-          contactCategories={contactCategories}
-          listAccountGroups={listAccountGroups}
-          findGroupsByNumber={findGroupsByNumber}
-          getGroupParticipants={getGroupParticipants}
-          bulkInsertContacts={bulkInsertContacts}
-        />
         <div className="cp-layout">
 
           {/* ════ SIDEBAR: Categories ════ */}
