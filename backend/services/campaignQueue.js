@@ -627,7 +627,12 @@ class CampaignQueue {
 
         this.markAccountSent(selectedAccount._id, antiBot);
 
-        await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save()]);
+        const contactUpdate = Contact.updateOne(
+          { userId: campaign.owner, mobile: selectedMessage.recipient },
+          { $inc: { messagesSent: 1 } }
+        ).exec().catch(err => console.error("Error updating messagesSent:", err));
+
+        await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save(), contactUpdate]);
       } catch (error) {
         selectedMessage.status = "failed";
         selectedMessage.senderMobileNumber = selectedAccount.phoneNumber || null;

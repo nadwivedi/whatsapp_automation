@@ -54,6 +54,10 @@ const contactSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    messagesSent: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true },
 );

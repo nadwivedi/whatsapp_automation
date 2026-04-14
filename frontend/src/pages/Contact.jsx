@@ -171,6 +171,7 @@ function Contact({
   const [filterCategory, setFilterCategory] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
+  const [filterSent, setFilterSent] = useState("");
 
   // ── Add Contact ──
   const [showAddPopup, setShowAddPopup] = useState(false);
@@ -218,9 +219,11 @@ function Contact({
       const matchCat = !filterCategory || item.contactCategory?._id === filterCategory;
       const matchState = !filterState || String(item.state || "").trim().toLowerCase() === filterState.toLowerCase();
       const matchDist = !filterDistrict || String(item.district || "").trim().toLowerCase() === filterDistrict.toLowerCase();
-      return matchSearch && matchCat && matchState && matchDist;
+      const sentCount = item.messagesSent || 0;
+      const matchSent = !filterSent || (filterSent === "sent" ? sentCount > 0 : sentCount === 0);
+      return matchSearch && matchCat && matchState && matchDist && matchSent;
     });
-  }, [contacts, filterCategory, filterDistrict, filterState, searchQuery]);
+  }, [contacts, filterCategory, filterDistrict, filterState, filterSent, searchQuery]);
 
   // ── Handlers ──
   async function onSubmit(e) {
@@ -554,10 +557,15 @@ function Contact({
                   <option value="">All districts</option>
                   {districtOptions.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
-                {(searchQuery || filterCategory || filterState || filterDistrict) && (
+                <select className="cp-select" value={filterSent} onChange={(e) => setFilterSent(e.target.value)}>
+                  <option value="">All message status</option>
+                  <option value="sent">✅ Message Sent</option>
+                  <option value="not_sent">❌ Not Sent</option>
+                </select>
+                {(searchQuery || filterCategory || filterState || filterDistrict || filterSent) && (
                   <button
                     style={{ background: "none", border: "none", fontSize: 12, color: "#7c8099", cursor: "pointer", fontFamily: "'Sora', sans-serif" }}
-                    onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterState(""); setFilterDistrict(""); }}
+                    onClick={() => { setSearchQuery(""); setFilterCategory(""); setFilterState(""); setFilterDistrict(""); setFilterSent(""); }}
                   >✕ Clear</button>
                 )}
                 <div className="cp-view-toggle">
@@ -586,6 +594,7 @@ function Contact({
                         <th>District</th>
                         <th>Address</th>
                         <th>Email</th>
+                        <th>Msgs Sent</th>
                         <th></th>
                       </tr>
                     </thead>
@@ -610,6 +619,13 @@ function Contact({
                               </span>
                             </td>
                             <td style={{ fontSize: 12 }}>{item.email || <span className="cp-td-muted">—</span>}</td>
+                            <td style={{ textAlign: "center" }}>
+                              {(item.messagesSent || 0) > 0 ? (
+                                <span className="cp-count" style={{ background: "#dcfce7", color: "#15803d" }}>{item.messagesSent}</span>
+                              ) : (
+                                <span className="cp-td-muted">—</span>
+                              )}
+                            </td>
                             <td>
                               <button
                                 className="cp-del-btn"
@@ -660,6 +676,11 @@ function Contact({
                             <div className="cp-card-row"><Icon.pin /><span>{[item.district, item.state].filter(Boolean).join(", ")}</span></div>
                           )}
                           {item.address && <div className="cp-card-row" style={{ alignItems: "flex-start" }}><Icon.pin /><span style={{ lineHeight: 1.4 }}>{item.address}</span></div>}
+                          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #e8eaf0" }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: (item.messagesSent || 0) > 0 ? "#dcfce7" : "#f1f5f9", color: (item.messagesSent || 0) > 0 ? "#15803d" : "#94a3b8" }}>
+                              {(item.messagesSent || 0) > 0 ? `📬 ${item.messagesSent} msg${item.messagesSent === 1 ? '' : 's'} sent` : '📤 No msgs sent'}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     );
