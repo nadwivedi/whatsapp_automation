@@ -14,6 +14,12 @@ function MessagesPage({
   openConversation,
   sendReplyToActiveConversation,
   deleteConversation,
+  clearAllChats,
+  clearUnrepliedChats,
+  inboxFilter,
+  setInboxFilter,
+  showOnlyDatabaseContacts,
+  setShowOnlyDatabaseContacts,
 }) {
   const [replyText, setReplyText] = useState("");
   const [selectedAccountId, setSelectedAccountId] = useState("");
@@ -24,6 +30,7 @@ function MessagesPage({
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [showChatMenu, setShowChatMenu] = useState(false);
+  const [showMaintenanceMenu, setShowMaintenanceMenu] = useState(false);
 
   const callbacksRef = useRef({
     loadConversations,
@@ -77,10 +84,13 @@ function MessagesPage({
       if (showChatMenu && !event.target.closest('.chat-menu')) {
         setShowChatMenu(false);
       }
+      if (showMaintenanceMenu && !event.target.closest('.maintenance-menu')) {
+        setShowMaintenanceMenu(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showChatMenu]);
+  }, [showChatMenu, showMaintenanceMenu]);
 
   const activeConversation = useMemo(
     () => conversations.find((item) => item.contactNumber === activeConversationNumber) || null,
@@ -96,6 +106,10 @@ function MessagesPage({
         item.sessionMobileNumber?.toLowerCase().includes(query)
     );
   }, [conversations, searchQuery]);
+
+  useEffect(() => {
+    loadConversations({ silent: true });
+  }, [inboxFilter, showOnlyDatabaseContacts]);
 
   useEffect(() => {
     let stopped = false;
@@ -215,8 +229,8 @@ function MessagesPage({
   }
 
   function formatLastMessage(item) {
-    if (!item.lastInboundMessage) return "No messages yet";
-    const text = item.lastInboundMessage.text || "(Media)";
+    if (!item.lastMessageText) return "No messages yet";
+    const text = item.lastMessageText || "(Media)";
     return text.length > 35 ? text.slice(0, 35) + "..." : text;
   }
 
@@ -234,21 +248,91 @@ function MessagesPage({
       <div className="flex w-full rounded-2xl overflow-hidden bg-white shadow-2xl">
         {showListPanel && (
           <aside className="w-full md:w-80 min-w-0 md:min-w-[280px] bg-[#ffffff] border-r border-gray-100 flex flex-col max-w-full overflow-hidden">
-            <div className="bg-[#f0f2f5] px-3 md:px-4 py-3 flex items-center justify-between">
-              <h1 className="text-lg md:text-xl font-bold text-gray-800">Chats</h1>
-              <button 
-                onClick={handleRefreshInbox} 
-                disabled={conversationsLoading}
-                className="p-2 rounded-full hover:bg-gray-200 transition disabled:opacity-50"
-                title="Refresh"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={conversationsLoading ? "animate-spin" : ""}>
-                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                  <path d="M3 3v5h5"/>
-                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                  <path d="M16 21h5v-5"/>
-                </svg>
-              </button>
+            <div className="bg-[#f0f2f5] px-3 md:px-4 py-3 flex items-center justify-between border-b border-gray-200">
+              <h1 className="text-lg md:text-xl font-bold text-gray-800">Messages</h1>
+              <div className="flex items-center gap-1">
+                <div className="relative maintenance-menu">
+                  <button
+                    onClick={() => setShowMaintenanceMenu(!showMaintenanceMenu)}
+                    className="p-2 rounded-full hover:bg-gray-200 transition"
+                    title="Maintenance"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                  </button>
+                  {showMaintenanceMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[60]">
+                      <button
+                        onClick={() => { setShowMaintenanceMenu(false); clearAllChats(); }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 transition flex items-center gap-3"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        Clear All Chats
+                      </button>
+                      <button
+                        onClick={() => { setShowMaintenanceMenu(false); clearUnrepliedChats(); }}
+                        className="w-full px-4 py-2.5 text-left text-sm text-orange-600 hover:bg-orange-50 transition flex items-center gap-3"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        Clear Unreplied Chats
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <button 
+                  onClick={handleRefreshInbox} 
+                  disabled={conversationsLoading}
+                  className="p-2 rounded-full hover:bg-gray-200 transition disabled:opacity-50"
+                  title="Refresh"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={conversationsLoading ? "animate-spin" : ""}>
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                    <path d="M16 21h5v-5"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col bg-white">
+              {/* Tabs */}
+              <div className="flex px-2 py-1 bg-gray-50/50 border-b border-gray-100">
+                {[
+                  { id: 'replied', label: 'Replied' },
+                  { id: 'unreplied', label: 'Unreplied' },
+                  { id: 'all', label: 'All' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setInboxFilter(tab.id)}
+                    className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                      inboxFilter === tab.id 
+                        ? "bg-white text-[#25d366] shadow-sm" 
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Database Toggle */}
+              <div className="px-3 py-2 flex items-center justify-between bg-white border-b border-gray-50">
+                <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Show only saved contacts</span>
+                <button 
+                  onClick={() => setShowOnlyDatabaseContacts(!showOnlyDatabaseContacts)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                    showOnlyDatabaseContacts ? 'bg-[#25d366]' : 'bg-gray-200'
+                  }`}
+                >
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                    showOnlyDatabaseContacts ? 'translate-x-5' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
             </div>
             
             <div className="px-2 md:px-3 py-2 bg-white">

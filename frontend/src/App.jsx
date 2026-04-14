@@ -136,6 +136,12 @@ function App() {
           openConversation={app.openConversation}
           sendReplyToActiveConversation={app.sendReplyToActiveConversation}
           deleteConversation={app.deleteConversation}
+          clearAllChats={app.clearAllChats}
+          clearUnrepliedChats={app.clearUnrepliedChats}
+          inboxFilter={app.inboxFilter}
+          setInboxFilter={app.setInboxFilter}
+          showOnlyDatabaseContacts={app.showOnlyDatabaseContacts}
+          setShowOnlyDatabaseContacts={app.setShowOnlyDatabaseContacts}
         />
       );
     }

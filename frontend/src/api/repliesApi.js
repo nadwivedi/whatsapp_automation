@@ -1,7 +1,9 @@
 import { apiRequest } from "./client";
 
-export function listConversations(token, onUnauthorized) {
-  return apiRequest("/replies/conversations", { token, onUnauthorized });
+export function listConversations(token, options = {}) {
+  const { filter = "replied", onlyDatabaseContacts = false, limit = 200 } = options;
+  const query = `?filter=${filter}&onlyDatabaseContacts=${onlyDatabaseContacts}&limit=${limit}`;
+  return apiRequest(`/replies/conversations${query}`, { token });
 }
 
 export function getConversationMessages(token, contactNumber, onUnauthorized) {
@@ -33,6 +35,20 @@ export function deleteConversation(token, contactNumber, onUnauthorized) {
   return apiRequest(`/replies/conversations/${contactNumber}`, {
     token,
     onUnauthorized,
+    options: { method: "DELETE" },
+  });
+}
+
+export function clearAllChats(token) {
+  return apiRequest("/replies/conversations/clear/all", {
+    token,
+    options: { method: "DELETE" },
+  });
+}
+
+export function clearUnrepliedChats(token) {
+  return apiRequest("/replies/conversations/clear/unreplied", {
+    token,
     options: { method: "DELETE" },
   });
 }

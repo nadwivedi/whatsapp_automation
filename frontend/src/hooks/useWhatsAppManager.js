@@ -50,6 +50,8 @@ import {
   markConversationRead as markConversationReadApi,
   sendConversationReply as sendConversationReplyApi,
   deleteConversation as deleteConversationApi,
+  clearAllChats as clearAllChatsApi,
+  clearUnrepliedChats as clearUnrepliedChatsApi,
 } from "../api/repliesApi";
 import { countRecipients } from "../utils/formatters";
 
@@ -164,6 +166,8 @@ export function useWhatsAppManager() {
     ...getDefaultCampaignDates(),
   });
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [inboxFilter, setInboxFilter] = useState("replied");
+  const [showOnlyDatabaseContacts, setShowOnlyDatabaseContacts] = useState(true);
 
   const stats = useMemo(() => {
     const authenticated = accounts.filter((a) => a.status === "authenticated").length;
@@ -747,7 +751,10 @@ export function useWhatsAppManager() {
     }
 
     try {
-      const payload = await listConversationsApi(token);
+      const payload = await listConversationsApi(token, {
+        filter: inboxFilter,
+        onlyDatabaseContacts: showOnlyDatabaseContacts,
+      });
       const nextConversations = payload.conversations || [];
       setConversations(nextConversations);
 
@@ -854,6 +861,38 @@ export function useWhatsAppManager() {
       return false;
     } finally {
       setSendingReply(false);
+    }
+  }
+
+  async function clearAllChats() {
+    const yes = window.confirm("Are you sure you want to PERMANENTLY delete ALL manual message history? Campaign reports will be kept but the inbox will be cleared.");
+    if (!yes) return;
+
+    setBusy("clear-all");
+    try {
+      await clearAllChatsApi(token);
+      setNotice({ type: "success", text: "Inbox cleared." });
+      await loadConversations({ silent: true });
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function clearUnrepliedChats() {
+    const yes = window.confirm("Permanently delete all chats where you haven't replied yet?");
+    if (!yes) return;
+
+    setBusy("clear-unreplied");
+    try {
+      await clearUnrepliedChatsApi(token);
+      setNotice({ type: "success", text: "Unreplied chats cleared." });
+      await loadConversations({ silent: true });
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+    } finally {
+      setBusy("");
     }
   }
 
@@ -1069,6 +1108,8 @@ export function useWhatsAppManager() {
     settings,
     stats,
     recipientsTotal,
+    inboxFilter,
+    showOnlyDatabaseContacts,
 
     setNotice,
     setDailyDrafts,
@@ -1078,6 +1119,8 @@ export function useWhatsAppManager() {
     setTemplateForm,
     setCampaignForm,
     setQrPreview,
+    setInboxFilter,
+    setShowOnlyDatabaseContacts,
 
     refreshAll,
     logout,
@@ -1112,7 +1155,8 @@ export function useWhatsAppManager() {
     openInbox,
     sendReplyToActiveConversation,
     deleteConversation,
+    clearAllChats,
+    clearUnrepliedChats,
     runDataMigration,
   };
 }
-
