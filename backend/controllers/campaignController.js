@@ -140,6 +140,18 @@ async function rebalancePendingMessagesForRecipientLimit(campaign, ownerId) {
 
   // After adding/removing messages for recipient limit, redistribute them properly across accounts
   await rebalancePendingMessagesForAccounts(campaign, ownerId);
+
+  const [totalRecipients, queuedCount, sentCount, failedCount] = await Promise.all([
+    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id }),
+    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "pending" }),
+    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "sent" }),
+    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "failed" }),
+  ]);
+
+  campaign.totalRecipients = totalRecipients;
+  campaign.queuedCount = queuedCount;
+  campaign.sentCount = sentCount;
+  campaign.failedCount = failedCount;
 }
 
 async function rebalancePendingMessagesForAccounts(campaign, ownerId) {
@@ -170,19 +182,6 @@ async function rebalancePendingMessagesForAccounts(campaign, ownerId) {
   if (bulkOps.length) {
     await CampaignMessage.bulkWrite(bulkOps);
   }
-}
-
-  const [totalRecipients, queuedCount, sentCount, failedCount] = await Promise.all([
-    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id }),
-    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "pending" }),
-    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "sent" }),
-    CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "failed" }),
-  ]);
-
-  campaign.totalRecipients = totalRecipients;
-  campaign.queuedCount = queuedCount;
-  campaign.sentCount = sentCount;
-  campaign.failedCount = failedCount;
 }
 
 async function listCampaigns(req, res) {
