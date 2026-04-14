@@ -42,6 +42,7 @@ import {
 import {
   getSettings as getSettingsApi,
   updateSettings as updateSettingsApi,
+  migrateNumbers as migrateNumbersApi,
 } from "../api/settingsApi";
 import {
   getConversationMessages as getConversationMessagesApi,
@@ -470,6 +471,24 @@ export function useWhatsAppManager() {
       const response = await updateSettingsApi(token, payload);
       setSettings(response.settings || DEFAULT_SETTINGS);
       setNotice({ type: "success", text: "Settings saved." });
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function runDataMigration() {
+    setBusy("migration");
+    try {
+      const response = await migrateNumbersApi(token);
+      setNotice({ 
+        type: "success", 
+        text: `Migration complete! Updated ${response.counts.contacts} contacts, ${response.counts.campaignMessages} campaigns, and ${response.counts.replyMessages} replies.` 
+      });
+      await refreshAll();
       return true;
     } catch (error) {
       setNotice({ type: "error", text: error.message });
@@ -1093,6 +1112,7 @@ export function useWhatsAppManager() {
     openInbox,
     sendReplyToActiveConversation,
     deleteConversation,
+    runDataMigration,
   };
 }
 

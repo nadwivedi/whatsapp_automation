@@ -10,3 +10,10 @@ export function updateSettings(token, payload) {
     options: { method: "PATCH", body: JSON.stringify(payload) },
   });
 }
+
+export function migrateNumbers(token) {
+  return apiRequest("/settings/migrate", {
+    token,
+    options: { method: "POST" },
+  });
+}

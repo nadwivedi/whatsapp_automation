@@ -19,7 +19,7 @@ function normalizeEmail(raw) {
 }
 
 function isValidMobile(mobile) {
-  return /^\d{10}$/.test(mobile);
+  return /^\d{12}$/.test(mobile);
 }
 
 function isValidEmail(email) {

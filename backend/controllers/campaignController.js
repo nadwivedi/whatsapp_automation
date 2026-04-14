@@ -138,6 +138,40 @@ async function rebalancePendingMessagesForRecipientLimit(campaign, ownerId) {
     await CampaignMessage.insertMany(docsToInsert);
   }
 
+  // After adding/removing messages for recipient limit, redistribute them properly across accounts
+  await rebalancePendingMessagesForAccounts(campaign, ownerId);
+}
+
+async function rebalancePendingMessagesForAccounts(campaign, ownerId) {
+  const pendingMessages = await CampaignMessage.find({
+    owner: ownerId,
+    campaign: campaign._id,
+    status: "pending",
+  }).sort({ createdAt: 1 });
+
+  if (!pendingMessages.length) return;
+
+  const accountIds = toAccountIdList(campaign);
+  if (!accountIds.length) return;
+
+  const bulkOps = [];
+  pendingMessages.forEach((message, index) => {
+    const targetAccountId = accountIds[index % accountIds.length];
+    if (String(message.account) !== String(targetAccountId)) {
+      bulkOps.push({
+        updateOne: {
+          filter: { _id: message._id },
+          update: { $set: { account: targetAccountId } },
+        },
+      });
+    }
+  });
+
+  if (bulkOps.length) {
+    await CampaignMessage.bulkWrite(bulkOps);
+  }
+}
+
   const [totalRecipients, queuedCount, sentCount, failedCount] = await Promise.all([
     CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id }),
     CampaignMessage.countDocuments({ owner: ownerId, campaign: campaign._id, status: "pending" }),
@@ -465,6 +499,8 @@ async function updateCampaign(req, res) {
       if (!campaign.account || !campaign.accounts.some((id) => String(id) === String(campaign.account))) {
         campaign.account = campaign.accounts[0];
       }
+      // Rebalance messages across the new set of accounts
+      await rebalancePendingMessagesForAccounts(campaign, req.user._id);
     }
   }
   if (recipientLimitChanged) {

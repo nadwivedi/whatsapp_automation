@@ -148,6 +148,7 @@ function App() {
           accounts={app.accounts}
           busy={app.busy}
           saveSettings={app.saveSettings}
+          runDataMigration={app.runDataMigration}
           refreshAll={app.refreshAll}
           refreshing={app.refreshing}
         />

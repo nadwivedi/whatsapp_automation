@@ -4,13 +4,13 @@ function normalizeContactMobile(raw) {
   const digits = String(raw || "").replace(/[^\d]/g, "");
   if (!digits) return "";
   if (digits.length === 12 && digits.startsWith("91")) {
-    return digits.slice(2);
+    return digits;
   }
   if (digits.length === 11 && digits.startsWith("0")) {
-    return digits.slice(1);
+    return "91" + digits.slice(1);
   }
   if (digits.length === 10) {
-    return digits;
+    return "91" + digits;
   }
   return digits;
 }

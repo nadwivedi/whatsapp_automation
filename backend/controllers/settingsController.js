@@ -233,7 +233,68 @@ async function updateSettings(req, res) {
   });
 }
 
+async function migrateMobileNumbers(req, res) {
+  const { Contact } = require("../models/contact");
+  const { CampaignMessage } = require("../models/CampaignMessage");
+  const { ReplyMessage } = require("../models/ReplyMessage");
+  const { normalizeNumber } = require("../utils/phone");
+
+  try {
+    const ownerId = req.user._id;
+    let counts = { contacts: 0, campaignMessages: 0, replyMessages: 0 };
+
+    // 1. Contacts
+    const contacts = await Contact.find({ userId: ownerId });
+    for (const c of contacts) {
+      const n = normalizeNumber(c.mobile);
+      if (n && n !== c.mobile) {
+        await Contact.updateOne({ _id: c._id }, { $set: { mobile: n } });
+        counts.contacts++;
+      }
+    }
+
+    // 2. CampaignMessages
+    const campMsgs = await CampaignMessage.find({ owner: ownerId });
+    for (const m of campMsgs) {
+      const update = {};
+      const n1 = normalizeNumber(m.recipient);
+      const n2 = normalizeNumber(m.recipientMobileNumber);
+      if (n1 && n1 !== m.recipient) update.recipient = n1;
+      if (n2 && n2 !== m.recipientMobileNumber) update.recipientMobileNumber = n2;
+      if (Object.keys(update).length > 0) {
+        await CampaignMessage.updateOne({ _id: m._id }, { $set: update });
+        counts.campaignMessages++;
+      }
+    }
+
+    // 3. ReplyMessages
+    const replyMsgs = await ReplyMessage.find({ owner: ownerId });
+    for (const m of replyMsgs) {
+      const update = {};
+      const n1 = normalizeNumber(m.contactNumber);
+      const n2 = normalizeNumber(m.senderMobileNumber);
+      const n3 = normalizeNumber(m.recipientMobileNumber);
+      if (n1 && n1 !== m.contactNumber) update.contactNumber = n1;
+      if (n2 && n2 !== m.senderMobileNumber) update.senderMobileNumber = n2;
+      if (n3 && n3 !== m.recipientMobileNumber) update.recipientMobileNumber = n3;
+      if (Object.keys(update).length > 0) {
+        await ReplyMessage.updateOne({ _id: m._id }, { $set: update });
+        counts.replyMessages++;
+      }
+    }
+
+    return res.json({
+      message: "Mobile numbers migrated successfully.",
+      counts
+    });
+  } catch (error) {
+    console.error("Migration error:", error);
+    return res.status(500).json({ message: "Failed to migrate mobile numbers." });
+  }
+}
+
 module.exports = {
   getSettings,
   updateSettings,
+  migrateMobileNumbers,
 };
