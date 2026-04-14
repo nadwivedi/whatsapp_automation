@@ -1,4 +1,4 @@
-﻿const { Campaign } = require("../models/Campaign");
+const { Campaign } = require("../models/Campaign");
 const { CampaignMessage } = require("../models/CampaignMessage");
 const { WaAccount } = require("../models/WaAccount");
 const { Contact } = require("../models/contact");
@@ -37,7 +37,8 @@ function shuffleArray(array) {
  */
 function spinMessage(text) {
   if (!text) return text;
-  return text.replace(/\{([^}]+)\}/g, (_match, group) => {
+  return text.replace(/\{([^{}]+)\}/g, (_match, group) => {
+    if (!group.includes("|")) return _match;
     const options = group.split("|").map((s) => s.trim()).filter(Boolean);
     if (!options.length) return "";
     return options[Math.floor(Math.random() * options.length)];
@@ -572,9 +573,9 @@ class CampaignQueue {
           contact,
           selectedMessage.recipient,
         );
-        if (antiBot.messageSpinning) {
-          messageText = spinMessage(messageText);
-        }
+        
+        // Always run spinning if user included the {a|b} syntax
+        messageText = spinMessage(messageText);
 
         const delivery = campaign.mediaData
           ? await whatsappSessionManager.sendMediaMessageDetailed(
