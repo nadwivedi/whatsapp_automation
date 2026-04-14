@@ -605,9 +605,15 @@ export function useWhatsAppManager() {
     }
     setBusy("create-campaign");
     try {
+      // Use user-selected sessions; fall back to all eligible if none chosen
+      const chosenIds =
+        Array.isArray(campaignForm.accountIds) && campaignForm.accountIds.length
+          ? campaignForm.accountIds
+          : eligibleAccountIds;
+
       await createCampaignApi(token, {
         title: campaignForm.title.trim(),
-        accountIds: eligibleAccountIds,
+        accountIds: chosenIds,
         templateId: campaignForm.templateId,
         messageBody: selectedTemplate.body || "",
         recipientsText: campaignForm.recipientsText,

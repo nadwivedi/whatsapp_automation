@@ -450,6 +450,23 @@ async function updateCampaign(req, res) {
   campaign.dateTo = dateTo;
   campaign.perNumberDailySafeguard = perNumberDailySafeguard || 20;
   campaign.perNumberHourlySafeguard = perNumberHourlySafeguard || 2;
+
+  // ── Update sending accounts if provided ──
+  if (Array.isArray(req.body?.accountIds) && req.body.accountIds.length) {
+    const uniqueIds = [...new Set(req.body.accountIds.map((id) => String(id)).filter(Boolean))];
+    const validAccounts = await WaAccount.find({
+      _id: { $in: uniqueIds },
+      owner: req.user._id,
+      isActive: true,
+      status: "authenticated",
+    }).select("_id");
+    if (validAccounts.length) {
+      campaign.accounts = validAccounts.map((a) => a._id);
+      if (!campaign.account || !campaign.accounts.some((id) => String(id) === String(campaign.account))) {
+        campaign.account = campaign.accounts[0];
+      }
+    }
+  }
   if (recipientLimitChanged) {
     await rebalancePendingMessagesForRecipientLimit(campaign, req.user._id);
   }

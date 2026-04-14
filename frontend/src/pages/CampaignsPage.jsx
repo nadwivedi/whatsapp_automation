@@ -41,6 +41,8 @@ function CampaignsPage({
     dateFrom: "",
     dateTo: "",
   });
+  const [createAccountIds, setCreateAccountIds] = useState([]);
+  const [editAccountIds, setEditAccountIds] = useState([]);
   const selectedTemplate = templates.find((item) => item._id === campaignForm.templateId) || null;
   const eligibleAccounts = accounts.filter(
     (account) => account.isActive !== false && account.status === "authenticated",
@@ -148,6 +150,8 @@ function CampaignsPage({
       dateFrom: campaign.dateFrom || "",
       dateTo: campaign.dateTo || "",
     });
+    const existingIds = (campaign.accounts || []).map(a => String(a._id || a));
+    setEditAccountIds(existingIds.length ? existingIds : eligibleAccounts.map(a => a._id));
     setShowEditPopup(true);
   }
 
@@ -161,6 +165,7 @@ function CampaignsPage({
       perRecipientMessageLimit: Number(editForm.perRecipientMessageLimit || 1),
       dateFrom: editForm.dateFrom || undefined,
       dateTo: editForm.dateTo || undefined,
+      accountIds: editAccountIds,
     });
 
     if (ok) {
@@ -180,7 +185,7 @@ function CampaignsPage({
           <button
             type="button"
             className="inline-flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-cyan-600 text-xl sm:text-2xl font-semibold text-white transition hover:bg-cyan-500"
-            onClick={() => setShowCreatePopup(true)}
+            onClick={() => { setShowCreatePopup(true); setCreateAccountIds(eligibleAccounts.map(a => a._id)); }}
             aria-label="Add campaign"
             title="Add campaign"
           >
@@ -198,7 +203,7 @@ function CampaignsPage({
             <h2 className="font-heading text-lg font-semibold text-slate-800">Add Campaign</h2>
             <p className="mt-1 text-xs sm:text-sm text-slate-500">Click + to open campaign form popup.</p>
           </div>
-          <button type="button" className="btn-cyan" onClick={() => setShowCreatePopup(true)}>
+          <button type="button" className="btn-cyan" onClick={() => { setShowCreatePopup(true); setCreateAccountIds(eligibleAccounts.map(a => a._id)); }}>
             + Add Campaign
           </button>
         </div>
@@ -225,7 +230,7 @@ function CampaignsPage({
               </button>
             </div>
 
-            <form className="grid items-start gap-4 sm:gap-5 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.25fr)]" onSubmit={createCampaign}>
+            <form className="grid items-start gap-4 sm:gap-5 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.25fr)]" onSubmit={(e) => { setCampaignForm(p => ({ ...p, accountIds: createAccountIds })); createCampaign(e); }}>
               <div className="space-y-3 lg:sticky lg:top-0">
                 <input
                   className="input-dark"
@@ -234,14 +239,34 @@ function CampaignsPage({
                   onChange={(e) => setCampaignForm((p) => ({ ...p, title: e.target.value }))}
                   required
                 />
-                <p className="rounded-lg bg-emerald-950/40 px-3 py-2 text-xs text-emerald-300">
-                  Sending Accounts: Automatically uses all active authenticated sessions ({eligibleAccounts.length})
-                </p>
-                <p className="text-xs text-slate-500">
-                  {eligibleAccounts.length
-                    ? eligibleAccounts.map((account) => account.name).join(", ")
-                    : "No active authenticated session found."}
-                </p>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/90 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-800">Sending Sessions <span className="text-xs font-normal text-slate-500">({createAccountIds.length}/{eligibleAccounts.length} selected)</span></p>
+                    <div className="flex gap-2">
+                      <button type="button" className="text-xs text-cyan-700 hover:text-cyan-600 font-medium" onClick={() => setCreateAccountIds(eligibleAccounts.map(a => a._id))}>All</button>
+                      <button type="button" className="text-xs text-slate-500 hover:text-slate-700 font-medium" onClick={() => setCreateAccountIds([])}>None</button>
+                    </div>
+                  </div>
+                  {!eligibleAccounts.length && <p className="text-xs text-amber-600">No active authenticated session found.</p>}
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {eligibleAccounts.map((acc) => (
+                      <label key={acc._id} className="flex items-center gap-2.5 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-slate-100">
+                        <input
+                          type="checkbox"
+                          checked={createAccountIds.includes(acc._id)}
+                          onChange={() => setCreateAccountIds(prev =>
+                            prev.includes(acc._id) ? prev.filter(id => id !== acc._id) : [...prev, acc._id]
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-800 truncate">{acc.name}</p>
+                          <p className="text-[11px] text-slate-500">{acc.phoneNumber || acc.status}</p>
+                        </div>
+                        <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Active</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
                 <select
                   className="input-dark"
                   required
@@ -547,6 +572,34 @@ function CampaignsPage({
                 value={editForm.messageBody}
                 onChange={(e) => setEditForm((p) => ({ ...p, messageBody: e.target.value }))}
               />
+              <div className="rounded-lg border border-slate-200 bg-slate-50/90 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-800">Sending Sessions <span className="text-xs font-normal text-slate-500">({editAccountIds.length}/{eligibleAccounts.length} selected)</span></p>
+                  <div className="flex gap-2">
+                    <button type="button" className="text-xs text-cyan-700 hover:text-cyan-600 font-medium" onClick={() => setEditAccountIds(eligibleAccounts.map(a => a._id))}>All</button>
+                    <button type="button" className="text-xs text-slate-500 hover:text-slate-700 font-medium" onClick={() => setEditAccountIds([])}>None</button>
+                  </div>
+                </div>
+                {!eligibleAccounts.length && <p className="text-xs text-amber-600">No active authenticated sessions.</p>}
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {eligibleAccounts.map((acc) => (
+                    <label key={acc._id} className="flex items-center gap-2.5 cursor-pointer rounded-lg px-2 py-1.5 hover:bg-slate-100">
+                      <input
+                        type="checkbox"
+                        checked={editAccountIds.includes(acc._id)}
+                        onChange={() => setEditAccountIds(prev =>
+                          prev.includes(acc._id) ? prev.filter(id => id !== acc._id) : [...prev, acc._id]
+                        )}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 truncate">{acc.name}</p>
+                        <p className="text-[11px] text-slate-500">{acc.phoneNumber || acc.status}</p>
+                      </div>
+                      <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-semibold">Active</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <input
                   className="input-dark"
