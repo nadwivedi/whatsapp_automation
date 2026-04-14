@@ -12,7 +12,14 @@ function parseLimit(rawValue, fallback, max) {
 
 async function listConversations(req, res) {
   const limit = parseLimit(req.query?.limit, 200, 500);
-  const conversations = await replyInboxService.listConversations(req.user._id, limit);
+  const filter = req.query?.filter || "replied"; // default to 'replied'
+  const onlyDatabaseContacts = req.query?.onlyDatabaseContacts === "true";
+
+  const conversations = await replyInboxService.listConversations(req.user._id, {
+    limit,
+    filter,
+    onlyDatabaseContacts,
+  });
   return res.json({ conversations });
 }
 
@@ -132,10 +139,22 @@ async function deleteConversation(req, res) {
   return res.json({ contactNumber, deletedCount });
 }
 
+async function clearAll(req, res) {
+  const deletedCount = await replyInboxService.clearAllConversations(req.user._id);
+  return res.json({ deletedCount });
+}
+
+async function clearUnreplied(req, res) {
+  const deletedCount = await replyInboxService.clearUnrepliedConversations(req.user._id);
+  return res.json({ deletedCount });
+}
+
 module.exports = {
   listConversations,
   listConversationMessages,
   markConversationRead,
   sendConversationReply,
   deleteConversation,
+  clearAll,
+  clearUnreplied,
 };

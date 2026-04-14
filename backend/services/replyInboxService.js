@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const { ReplyMessage } = require("../models/ReplyMessage");
 const { CampaignMessage } = require("../models/CampaignMessage");
 const { WaAccount } = require("../models/WaAccount");
+const { Contact } = require("../models/contact");
 const { normalizeNumber } = require("../utils/phone");
 const { emitReplyMessage } = require("./replyEvents");
 
@@ -163,7 +164,8 @@ class ReplyInboxService {
     );
   }
 
-  async listConversations(ownerId, limit = 200) {
+  async listConversations(ownerId, options = {}) {
+    const { limit = 200, filter = "replied", onlyDatabaseContacts = true } = options;
     const ownerObjectId = new mongoose.Types.ObjectId(String(ownerId));
     const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
 
@@ -204,6 +206,11 @@ class ReplyInboxService {
             inboundMessageCount: {
               $sum: {
                 $cond: [{ $eq: ["$direction", "inbound"] }, 1, 0],
+              },
+            },
+            outboundMessageCount: {
+              $sum: {
+                $cond: [{ $eq: ["$direction", "outbound"] }, 1, 0],
               },
             },
           },
@@ -337,12 +344,14 @@ class ReplyInboxService {
         lastMessageAt: new Date(bucket.last?.messageAt || Date.now()).toISOString(),
         unreadCount: Number(bucket.unreadCount) || 0,
         inboundMessageCount: Number(bucket.inboundMessageCount) || 0,
+        outboundMessageCount: Number(bucket.outboundMessageCount) || 0,
         sessionMobileNumber: sessionFromBuckets || fallbackSession || null,
       };
 
       merged.set(contactNumber, mergeConversationPreview(merged.get(contactNumber), item));
     }
 
+    const campaignByContact = new Map();
     for (const bucket of campaignBuckets) {
       const contactNumber = normalizeContact(bucket?._id);
       if (!contactNumber) continue;
@@ -362,15 +371,40 @@ class ReplyInboxService {
         lastMessageAt: new Date(bucket.last?.messageAt || Date.now()).toISOString(),
         unreadCount: 0,
         inboundMessageCount: 0,
+        outboundMessageCount: 1,
         sessionMobileNumber: sessionFromBuckets || null,
       };
-
+      
+      campaignByContact.set(contactNumber, item);
       merged.set(contactNumber, mergeConversationPreview(merged.get(contactNumber), item));
     }
 
-    return Array.from(merged.values())
-      .sort((a, b) => new Date(b.lastMessageAt) - new Date(a.lastMessageAt))
-      .slice(0, safeLimit);
+    let result = Array.from(merged.values());
+
+    // 1. Database Contact Filter
+    if (onlyDatabaseContacts) {
+      const contactNumbersInDb = await Contact.find({ userId: ownerId, mobile: { $in: result.map(it => it.contactNumber) } }).distinct("mobile");
+      const contactSet = new Set(contactNumbersInDb);
+      result = result.filter(it => contactSet.has(it.contactNumber));
+    }
+
+    // 2. Multi-Tab Filter
+    if (filter === "replied") {
+      // User says "where i send message and user message me back"
+      result = result.filter(it => it.inboundMessageCount > 0 && it.outboundMessageCount > 0);
+    } else if (filter === "unreplied") {
+      // Latest message is inbound AND we haven't replied back yet (or simply lastDirection is inbound)
+      result = result.filter(it => it.lastDirection === "inbound" && it.unreadCount > 0);
+    }
+
+    // 3. Intelligent Sorting: Unseen (Unread) First, then by time
+    result.sort((a, b) => {
+      if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+      if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+      return new Date(b.lastMessageAt) - new Date(a.lastMessageAt);
+    });
+
+    return result.slice(0, safeLimit);
   }
 
   async listConversationMessages(ownerId, contactNumber, limit = 500) {
@@ -564,6 +598,27 @@ class ReplyInboxService {
     const result = await ReplyMessage.deleteMany({
       owner: ownerId,
       contactNumber: normalizedContact,
+    });
+
+    return result.deletedCount || 0;
+  }
+
+  async clearAllConversations(ownerId) {
+    const result = await ReplyMessage.deleteMany({ owner: ownerId });
+    return result.deletedCount || 0;
+  }
+
+  async clearUnrepliedConversations(ownerId) {
+    // 1. Get all current conversations
+    const conversations = await this.listConversations(ownerId, { limit: 500, filter: "unreplied" });
+    const unrepliedContacts = conversations.map(it => it.contactNumber);
+
+    if (!unrepliedContacts.length) return 0;
+
+    // 2. Delete all reply messages for these specific contacts
+    const result = await ReplyMessage.deleteMany({
+      owner: ownerId,
+      contactNumber: { $in: unrepliedContacts }
     });
 
     return result.deletedCount || 0;
