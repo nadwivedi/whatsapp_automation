@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useMemo } from "react";
 import { formatDate } from "../utils/formatters";
 import { campaignTone } from "../utils/tones";
@@ -32,6 +32,7 @@ function CampaignsPage({
   const [stateFilter, setStateFilter] = useState("");
   const [districtFilter, setDistrictFilter] = useState("");
   const [contactSearch, setContactSearch] = useState("");
+  const [messageSentFilter, setMessageSentFilter] = useState("");
   const [selectedContactIds, setSelectedContactIds] = useState([]);
   const [recipientMode, setRecipientMode] = useState("contacts");
   const [editForm, setEditForm] = useState({
@@ -92,9 +93,13 @@ function CampaignsPage({
         String(contact?.mobile || "").toLowerCase().includes(query) ||
         String(contact?.contactCategory?.name || "").toLowerCase().includes(query);
 
-      return matchCategory && matchState && matchDistrict && matchQuery;
+      const sentCount = contact?.messagesSent || 0;
+      const matchSent = !messageSentFilter ||
+        (messageSentFilter === "sent" ? sentCount > 0 : sentCount === 0);
+
+      return matchCategory && matchState && matchDistrict && matchQuery && matchSent;
     });
-  }, [contacts, contactCategoryFilter, stateFilter, districtFilter, contactSearch]);
+  }, [contacts, contactCategoryFilter, stateFilter, districtFilter, contactSearch, messageSentFilter]);
   const selectedContacts = useMemo(
     () => filteredContacts.filter((contact) => selectedContactIds.includes(contact._id)),
     [filteredContacts, selectedContactIds],
@@ -414,7 +419,7 @@ function CampaignsPage({
                     </div>
                   </div>
 
-                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     <select
                       className="input-dark text-xs h-9 px-2.5"
                       value={contactCategoryFilter}
@@ -460,6 +465,15 @@ function CampaignsPage({
                       value={contactSearch}
                       onChange={(e) => setContactSearch(e.target.value)}
                     />
+                    <select
+                      className="input-dark text-xs h-9 px-2.5"
+                      value={messageSentFilter}
+                      onChange={(e) => setMessageSentFilter(e.target.value)}
+                    >
+                      <option value="">All msg status</option>
+                      <option value="sent">✅ Msg Sent</option>
+                      <option value="not_sent">❌ Not Sent</option>
+                    </select>
                   </div>
 
                   <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -494,7 +508,12 @@ function CampaignsPage({
                                 {contact.contactCategory?.name ? ` • ${contact.contactCategory.name}` : ""}
                                 {contact.state ? ` • ${contact.state}` : ""}
                                 {contact.district ? ` • ${contact.district}` : ""}
-                              </p>
+                               </p>
+                               {(contact.messagesSent || 0) > 0 && (
+                                 <span className="inline-flex items-center gap-1 mt-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                   📤 {contact.messagesSent} msg{contact.messagesSent === 1 ? '' : 's'} sent
+                                 </span>
+                               )}
                             </div>
                           </label>
                         ))
