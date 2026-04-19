@@ -495,7 +495,7 @@ class CampaignQueue {
         if (account.sentToday >= effectiveDailyCap) {
           await account.save();
           if (whatsappSessionManager.hasClient(account._id)) {
-            whatsappSessionManager.stopSession(account._id).catch(() => {});
+            whatsappSessionManager.sleepSession(account._id).catch(() => {});
           }
           const isWarmingUp = antiBot.antiBotEnabled && antiBot.warmUpEnabled && effectiveDailyCap < rawDailyCap;
           lastBlockReason = isWarmingUp
@@ -506,25 +506,30 @@ class CampaignQueue {
         if (account.sentThisHour >= effectiveHourlyCap) {
           await account.save();
           if (whatsappSessionManager.hasClient(account._id)) {
-            whatsappSessionManager.stopSession(account._id).catch(() => {});
+            whatsappSessionManager.sleepSession(account._id).catch(() => {});
           }
           lastBlockReason = `Hourly safeguard reached (${effectiveHourlyCap}/hour) for one or more selected sessions.`;
           continue;
         }
-        if (account.status !== "authenticated") {
-          if (account.status === "disconnected") {
-            try {
-              account = await whatsappSessionManager.startSession(account._id);
-              accountCache.set(String(account._id), account);
-            } catch (err) {
-              lastBlockReason = "Connecting account failed: " + err.message;
-              continue;
-            }
-          }
-          if (account.status !== "authenticated") {
-            lastBlockReason = "One or more selected sessions are not authenticated (Status: " + account.status + ").";
+        if (!whatsappSessionManager.hasClient(account._id)) {
+          // If the server restarted, DB might say "authenticated" but memory has no client. Force start on demand.
+          try {
+            account = await whatsappSessionManager.startSession(account._id);
+            accountCache.set(String(account._id), account);
+          } catch (err) {
+            lastBlockReason = "Connecting account failed: " + err.message;
             continue;
           }
+          
+          if (!whatsappSessionManager.hasClient(account._id)) {
+            lastBlockReason = "One or more selected sessions failed to start.";
+            continue;
+          }
+        }
+
+        if (account.status !== "authenticated") {
+          lastBlockReason = "One or more selected sessions are not authenticated (Status: " + account.status + ").";
+          continue;
         }
 
         if (this.isAccountThrottled(account._id)) {

@@ -10,6 +10,7 @@ class WhatsappSessionManager {
     this.clients = new Map();
     this.startingSessions = new Map();
     this.clientActivities = new Map();
+    this.intentionalSleeps = new Set();
     this.idleTimer = setInterval(() => this.checkIdleSessions(), 60000);
   }
 
@@ -22,7 +23,7 @@ class WhatsappSessionManager {
     for (const [accountId, lastActive] of this.clientActivities.entries()) {
       if (now - lastActive > 3 * 60 * 1000) {
         try {
-          await this.stopSession(accountId);
+          await this.sleepSession(accountId);
         } catch (_error) {
           // Ignore
         }
@@ -177,6 +178,10 @@ class WhatsappSessionManager {
     });
 
     client.on("disconnected", async (reason) => {
+      if (this.intentionalSleeps.has(mapKey)) {
+        this.intentionalSleeps.delete(mapKey);
+        return;
+      }
       this.clients.delete(mapKey);
       await this.updateAccount(account._id, {
         status: "disconnected",
@@ -263,6 +268,24 @@ class WhatsappSessionManager {
       qrCodeDataUrl: null,
       lastError: null,
     });
+    return WaAccount.findById(accountId);
+  }
+
+  async sleepSession(accountId) {
+    const mapKey = String(accountId);
+    const inFlightStart = this.startingSessions.get(mapKey);
+    if (inFlightStart) {
+      await inFlightStart.catch(() => { });
+    }
+
+    const client = this.clients.get(mapKey);
+    if (client) {
+      this.intentionalSleeps.add(mapKey);
+      await client.destroy();
+      this.clients.delete(mapKey);
+    }
+    this.clientActivities.delete(mapKey);
+    // DO NOT update database status. Leave it as "authenticated" for UI.
     return WaAccount.findById(accountId);
   }
 
