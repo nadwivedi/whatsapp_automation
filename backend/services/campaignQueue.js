@@ -494,6 +494,9 @@ class CampaignQueue {
 
         if (account.sentToday >= effectiveDailyCap) {
           await account.save();
+          if (whatsappSessionManager.hasClient(account._id)) {
+            whatsappSessionManager.stopSession(account._id).catch(() => {});
+          }
           const isWarmingUp = antiBot.antiBotEnabled && antiBot.warmUpEnabled && effectiveDailyCap < rawDailyCap;
           lastBlockReason = isWarmingUp
             ? `Warm-up limit reached (${effectiveDailyCap}/${rawDailyCap} daily) for ${account.phoneNumber || account.name || "account"}. Limit increases daily.`
@@ -502,12 +505,26 @@ class CampaignQueue {
         }
         if (account.sentThisHour >= effectiveHourlyCap) {
           await account.save();
+          if (whatsappSessionManager.hasClient(account._id)) {
+            whatsappSessionManager.stopSession(account._id).catch(() => {});
+          }
           lastBlockReason = `Hourly safeguard reached (${effectiveHourlyCap}/hour) for one or more selected sessions.`;
           continue;
         }
         if (account.status !== "authenticated") {
-          lastBlockReason = "One or more selected sessions are not authenticated.";
-          continue;
+          if (account.status === "disconnected") {
+            try {
+              account = await whatsappSessionManager.startSession(account._id);
+              accountCache.set(String(account._id), account);
+            } catch (err) {
+              lastBlockReason = "Connecting account failed: " + err.message;
+              continue;
+            }
+          }
+          if (account.status !== "authenticated") {
+            lastBlockReason = "One or more selected sessions are not authenticated (Status: " + account.status + ").";
+            continue;
+          }
         }
 
         if (this.isAccountThrottled(account._id)) {

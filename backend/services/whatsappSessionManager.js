@@ -1,4 +1,4 @@
-﻿const QRCode = require("qrcode");
+const QRCode = require("qrcode");
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const { WaAccount } = require("../models/WaAccount");
 const replyInboxService = require("./replyInboxService");
@@ -9,6 +9,25 @@ class WhatsappSessionManager {
   constructor() {
     this.clients = new Map();
     this.startingSessions = new Map();
+    this.clientActivities = new Map();
+    this.idleTimer = setInterval(() => this.checkIdleSessions(), 60000);
+  }
+
+  recordActivity(accountId) {
+    this.clientActivities.set(String(accountId), Date.now());
+  }
+
+  async checkIdleSessions() {
+    const now = Date.now();
+    for (const [accountId, lastActive] of this.clientActivities.entries()) {
+      if (now - lastActive > 3 * 60 * 1000) {
+        try {
+          await this.stopSession(accountId);
+        } catch (_error) {
+          // Ignore
+        }
+      }
+    }
   }
 
   isRecoverableProtocolError(error) {
@@ -131,6 +150,7 @@ class WhatsappSessionManager {
     });
 
     client.on("authenticated", async () => {
+      this.recordActivity(account._id);
       await this.updateAccount(account._id, {
         status: "initializing",
         lastError: null,
@@ -138,6 +158,7 @@ class WhatsappSessionManager {
     });
 
     client.on("ready", async () => {
+      this.recordActivity(account._id);
       const phoneNumber = client.info?.wid?.user || null;
       await this.updateAccount(account._id, {
         status: "authenticated",
@@ -165,6 +186,7 @@ class WhatsappSessionManager {
     });
 
     client.on("message", async (message) => {
+      this.recordActivity(account._id);
       try {
         if (!message || message.fromMe) {
           return;
@@ -235,6 +257,7 @@ class WhatsappSessionManager {
       await client.destroy();
       this.clients.delete(mapKey);
     }
+    this.clientActivities.delete(mapKey);
     await this.updateAccount(accountId, {
       status: "disconnected",
       qrCodeDataUrl: null,
@@ -337,6 +360,7 @@ class WhatsappSessionManager {
     try {
       const chatId = await this.resolveRecipientChatId(client, normalized);
       const result = await client.sendMessage(chatId, text);
+      this.recordActivity(accountId);
       return {
         providerMessageId: result?.id?._serialized || null,
         providerChatId: chatId || null,
@@ -408,6 +432,7 @@ class WhatsappSessionManager {
       const result = await client.sendMessage(chatId, messageMedia, {
         caption: caption || undefined,
       });
+      this.recordActivity(accountId);
       return {
         providerMessageId: result?.id?._serialized || null,
         providerChatId: chatId || null,

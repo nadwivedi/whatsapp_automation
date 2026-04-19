@@ -45,7 +45,7 @@ async function startServer() {
   await connectMongo();
   await runDataMigrations();
   campaignQueue.start();
-  await whatsappSessionManager.restoreActiveSessions();
+  // REMOVED: await whatsappSessionManager.restoreActiveSessions();
 
   const httpServer = http.createServer(app);
   const replySocketServer = initializeReplySocketServer(httpServer);
