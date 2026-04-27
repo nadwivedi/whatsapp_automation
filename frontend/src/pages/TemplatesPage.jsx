@@ -263,8 +263,6 @@ function TemplatesPage({
                 <p className="font-semibold mb-2">Insert Variables (Click to add)</p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="rounded bg-cyan-200 px-2 py-1 text-[11px] font-medium text-cyan-900 hover:bg-cyan-300 transition-colors" onClick={() => setTemplateForm(p => ({...p, body: p.body + "{{name}}"}))}>{"{{name}}"}</button>
-                  <button type="button" className="rounded bg-cyan-200 px-2 py-1 text-[11px] font-medium text-cyan-900 hover:bg-cyan-300 transition-colors" onClick={() => setTemplateForm(p => ({...p, body: p.body + "{{first_name}}"}))}>{"{{first_name}}"}</button>
-                  <button type="button" className="rounded bg-cyan-200 px-2 py-1 text-[11px] font-medium text-cyan-900 hover:bg-cyan-300 transition-colors" onClick={() => setTemplateForm(p => ({...p, body: p.body + "{{business_name}}"}))}>{"{{business_name}}"}</button>
                   <button type="button" className="rounded bg-cyan-200 px-2 py-1 text-[11px] font-medium text-cyan-900 hover:bg-cyan-300 transition-colors" onClick={() => setTemplateForm(p => ({...p, body: p.body + "{Hi|Hello|Hey}"}))}>Greeting: {"{Hi|Hello|Hey}"}</button>
                 </div>
               </div>
@@ -368,8 +366,6 @@ function TemplatesPage({
                 <p className="font-semibold mb-2">Insert Variables (Click to add)</p>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="rounded bg-cyan-200 px-2 py-1 text-[11px] font-medium text-cyan-900 hover:bg-cyan-300 transition-colors" onClick={() => setEditForm(p => ({...p, body: p.body + "{{name}}"}))}>{"{{name}}"}</button>
-                  <button type="button" className="rounded bg-cyan-200 px-2 py-1 text-[11px] font-medium text-cyan-900 hover:bg-cyan-300 transition-colors" onClick={() => setEditForm(p => ({...p, body: p.body + "{{first_name}}"}))}>{"{{first_name}}"}</button>
-                  <button type="button" className="rounded bg-cyan-200 px-2 py-1 text-[11px] font-medium text-cyan-900 hover:bg-cyan-300 transition-colors" onClick={() => setEditForm(p => ({...p, body: p.body + "{{business_name}}"}))}>{"{{business_name}}"}</button>
                   <button type="button" className="rounded bg-cyan-200 px-2 py-1 text-[11px] font-medium text-cyan-900 hover:bg-cyan-300 transition-colors" onClick={() => setEditForm(p => ({...p, body: p.body + "{Hi|Hello|Hey}"}))}>Greeting: {"{Hi|Hello|Hey}"}</button>
                 </div>
               </div>
