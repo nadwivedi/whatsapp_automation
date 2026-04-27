@@ -680,24 +680,24 @@ export function useWhatsAppManager() {
 
     if (!eligibleAccountIds.length) {
       setNotice({ type: "error", text: "No active authenticated sessions available for sending." });
-      return;
+      return false;
     }
     if (!campaignForm.maxMessages) {
       setNotice({ type: "error", text: "Total messages to send is required." });
-      return;
+      return false;
     }
     if (!campaignForm.templateId) {
       setNotice({ type: "error", text: "Please select a message template." });
-      return;
+      return false;
     }
     const selectedTemplate = templates.find((t) => t._id === campaignForm.templateId);
     if (!selectedTemplate) {
       setNotice({ type: "error", text: "Selected template is invalid." });
-      return;
+      return false;
     }
     if (campaignForm.dateFrom && campaignForm.dateTo && campaignForm.dateFrom > campaignForm.dateTo) {
       setNotice({ type: "error", text: "Campaign From date cannot be later than Campaign To date." });
-      return;
+      return false;
     }
     setBusy("create-campaign");
     try {
@@ -728,8 +728,10 @@ export function useWhatsAppManager() {
       }));
       setNotice({ type: "success", text: "Campaign queued." });
       await refreshAll();
+      return true;
     } catch (error) {
       setNotice({ type: "error", text: error.message });
+      return false;
     } finally {
       setBusy("");
     }

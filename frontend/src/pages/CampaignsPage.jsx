@@ -235,7 +235,11 @@ function CampaignsPage({
               </button>
             </div>
 
-            <form className="grid items-start gap-4 sm:gap-5 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.25fr)]" onSubmit={(e) => { setCampaignForm(p => ({ ...p, accountIds: createAccountIds })); createCampaign(e); }}>
+            <form className="grid items-start gap-4 sm:gap-5 lg:grid-cols-[minmax(320px,0.95fr)_minmax(0,1.25fr)]" onSubmit={async (e) => { 
+              setCampaignForm(p => ({ ...p, accountIds: createAccountIds })); 
+              const ok = await createCampaign(e);
+              if (ok) setShowCreatePopup(false);
+            }}>
               <div className="space-y-3 lg:sticky lg:top-0">
                 <input
                   className="input-dark"
