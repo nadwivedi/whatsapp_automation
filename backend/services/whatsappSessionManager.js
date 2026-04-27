@@ -1,3 +1,5 @@
+const path = require("path");
+const fs = require("fs");
 const QRCode = require("qrcode");
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const { WaAccount } = require("../models/WaAccount");
@@ -17,6 +19,21 @@ class WhatsappSessionManager {
 
   recordActivity(accountId) {
     this.clientActivities.set(String(accountId), Date.now());
+  }
+  
+  clearChromeLock(clientId) {
+    try {
+      const sessionDir = path.resolve(AUTH_DATA_PATH, `session-${clientId}`);
+      const filesToCleanup = ["SingletonLock", "SingletonSocket", "SingletonCookie"];
+      for (const fileName of filesToCleanup) {
+        const filePath = path.join(sessionDir, fileName);
+        if (fs.existsSync(filePath)) {
+          fs.rmSync(filePath, { force: true });
+        }
+      }
+    } catch (err) {
+      console.warn(`[WHATSAPP] Lock clear warning for ${clientId}:`, err.message);
+    }
   }
 
   async checkIdleSessions() {
@@ -113,6 +130,7 @@ class WhatsappSessionManager {
         );
       }
     }
+    this.clearChromeLock(account.clientId);
 
     const client = new Client({
       authStrategy: new LocalAuth({

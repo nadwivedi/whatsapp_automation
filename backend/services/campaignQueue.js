@@ -351,12 +351,22 @@ class CampaignQueue {
   }
 
   async finishCampaignIfDone(campaign) {
-    if (campaign.queuedCount > 0) {
+    const pendingCount = await CampaignMessage.countDocuments({
+      campaign: campaign._id,
+      status: "pending",
+    });
+
+    if (pendingCount > 0) {
+      if (campaign.queuedCount !== pendingCount) {
+        campaign.queuedCount = pendingCount;
+        await campaign.save();
+      }
       return campaign;
     }
 
     const finalStatus = campaign.sentCount > 0 ? "completed" : "failed";
     campaign.status = finalStatus;
+    campaign.queuedCount = 0;
     campaign.completedAt = new Date();
     await campaign.save();
     return campaign;
@@ -495,6 +505,7 @@ class CampaignQueue {
         if (account.sentToday >= effectiveDailyCap) {
           await account.save();
           if (whatsappSessionManager.hasClient(account._id)) {
+            console.log(`[QUEUE] Account ${account.phoneNumber} reached daily limit (${effectiveDailyCap}). Sleeping session.`);
             whatsappSessionManager.sleepSession(account._id).catch(() => {});
           }
           const isWarmingUp = antiBot.antiBotEnabled && antiBot.warmUpEnabled && effectiveDailyCap < rawDailyCap;
@@ -506,6 +517,7 @@ class CampaignQueue {
         if (account.sentThisHour >= effectiveHourlyCap) {
           await account.save();
           if (whatsappSessionManager.hasClient(account._id)) {
+            console.log(`[QUEUE] Account ${account.phoneNumber} reached hourly limit (${effectiveHourlyCap}). Sleeping session.`);
             whatsappSessionManager.sleepSession(account._id).catch(() => {});
           }
           lastBlockReason = `Hourly safeguard reached (${effectiveHourlyCap}/hour) for one or more selected sessions.`;
@@ -640,7 +652,9 @@ class CampaignQueue {
           selectedAccount.dayWindowStart = new Date();
         }
         selectedAccount.sentThisHour += 1;
-        selectedAccount.hourWindowStart = new Date();
+        if (!selectedAccount.hourWindowStart) {
+          selectedAccount.hourWindowStart = new Date();
+        }
 
         // ── Warm-Up: track first campaign send time ──
         if (!selectedAccount.firstCampaignSentAt) {
