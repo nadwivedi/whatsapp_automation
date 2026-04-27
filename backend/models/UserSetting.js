@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
-const DEFAULT_PER_MOBILE_DAILY_LIMIT = 100;
-const DEFAULT_PER_MOBILE_HOURLY_LIMIT = 20;
+const DEFAULT_PER_MOBILE_DAILY_LIMIT = 20;
+const DEFAULT_PER_MOBILE_HOURLY_LIMIT = 2;
 
 const DEFAULT_ANTI_BOT = {
   antiBotEnabled: false,
