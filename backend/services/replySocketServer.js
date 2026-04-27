@@ -145,10 +145,23 @@ function initializeReplySocketServer(server) {
   };
 
   replyEvents.on("reply:message", onReplyMessage);
+  
+  const onSessionStatus = ({ ownerId, accountId, status, ...details }) => {
+    sendToOwner(ownerId, {
+      type: "session:status",
+      accountId,
+      status,
+      ...details,
+      at: new Date().toISOString(),
+    });
+  };
+
+  replyEvents.on("session:status", onSessionStatus);
 
   async function close() {
     server.off("upgrade", handleUpgrade);
     replyEvents.off("reply:message", onReplyMessage);
+    replyEvents.off("session:status", onSessionStatus);
 
     for (const sockets of ownerSockets.values()) {
       for (const socket of sockets) {

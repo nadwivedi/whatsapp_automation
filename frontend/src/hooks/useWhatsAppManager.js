@@ -53,6 +53,7 @@ import {
   clearAllChats as clearAllChatsApi,
   clearUnrepliedChats as clearUnrepliedChatsApi,
 } from "../api/repliesApi";
+import { REPLIES_WS_URL } from "../api/client";
 import { countRecipients } from "../utils/formatters";
 
 const DEFAULT_SETTINGS = {
@@ -344,6 +345,78 @@ export function useWhatsAppManager() {
       setRefreshing(false);
     }
   }
+
+  useEffect(() => {
+    if (!token) return undefined;
+
+    let socket = null;
+    let stopped = false;
+    let reconnectTimer = null;
+
+    const connect = () => {
+      if (stopped) return;
+
+      socket = new window.WebSocket(REPLIES_WS_URL);
+
+      socket.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data || "{}");
+          if (payload?.type === "session:status") {
+            const { accountId, status, phoneNumber, qrCodeDataUrl, lastError } = payload;
+            
+            setAccounts((prev) =>
+              prev.map((acc) =>
+                acc._id === accountId
+                  ? {
+                      ...acc,
+                      status,
+                      phoneNumber: phoneNumber !== undefined ? phoneNumber : acc.phoneNumber,
+                      qrCodeDataUrl: qrCodeDataUrl !== undefined ? qrCodeDataUrl : acc.qrCodeDataUrl,
+                      lastError: lastError !== undefined ? lastError : acc.lastError,
+                      lastConnectedAt: status === "authenticated" ? new Date().toISOString() : acc.lastConnectedAt,
+                    }
+                  : acc,
+              ),
+            );
+
+            setQrPreview((prev) => {
+              if (prev?.accountId === accountId) {
+                if (status === "authenticated") return null;
+                return {
+                  ...prev,
+                  status,
+                  qrCodeDataUrl: qrCodeDataUrl !== undefined ? qrCodeDataUrl : prev.qrCodeDataUrl,
+                };
+              }
+              return prev;
+            });
+          }
+        } catch (_error) {
+          // Ignore
+        }
+      };
+
+      socket.onclose = () => {
+        if (!stopped) {
+          reconnectTimer = window.setTimeout(connect, 3000);
+        }
+      };
+
+      socket.onerror = () => {
+        try { socket.close(); } catch (_e) { }
+      };
+    };
+
+    connect();
+
+    return () => {
+      stopped = true;
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      if (socket) {
+        try { socket.close(); } catch (_e) { }
+      }
+    };
+  }, [token]);
 
   async function logout() {
     try {

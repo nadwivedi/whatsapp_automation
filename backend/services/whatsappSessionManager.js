@@ -2,6 +2,7 @@ const QRCode = require("qrcode");
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const { WaAccount } = require("../models/WaAccount");
 const replyInboxService = require("./replyInboxService");
+const { emitSessionStatus } = require("./replyEvents");
 const { normalizeNumber, toWhatsAppRecipient } = require("../utils/phone");
 const AUTH_DATA_PATH = process.env.AUTH_DATA_PATH || process.env.WHATSAPP_AUTH_DIR || ".wwebjs_auth";
 
@@ -142,11 +143,13 @@ class WhatsappSessionManager {
           qrCodeDataUrl,
           lastError: null,
         });
+        emitSessionStatus(account.owner, account._id, "qr_ready", { qrCodeDataUrl });
       } catch (error) {
         await this.updateAccount(account._id, {
           status: "auth_failure",
           lastError: `QR generation failed: ${error.message}`,
         });
+        emitSessionStatus(account.owner, account._id, "auth_failure", { lastError: `QR generation failed: ${error.message}` });
       }
     });
 
@@ -156,6 +159,7 @@ class WhatsappSessionManager {
         status: "initializing",
         lastError: null,
       });
+      emitSessionStatus(account.owner, account._id, "initializing");
     });
 
     client.on("ready", async () => {
@@ -168,6 +172,7 @@ class WhatsappSessionManager {
         qrCodeDataUrl: null,
         lastError: null,
       });
+      emitSessionStatus(account.owner, account._id, "authenticated", { phoneNumber });
     });
 
     client.on("auth_failure", async (message) => {
@@ -175,6 +180,7 @@ class WhatsappSessionManager {
         status: "auth_failure",
         lastError: message || "Authentication failure.",
       });
+      emitSessionStatus(account.owner, account._id, "auth_failure", { lastError: message || "Authentication failure." });
     });
 
     client.on("disconnected", async (reason) => {
@@ -188,6 +194,7 @@ class WhatsappSessionManager {
         qrCodeDataUrl: null,
         lastError: typeof reason === "string" ? reason : "Disconnected from WhatsApp Web.",
       });
+      emitSessionStatus(account.owner, account._id, "disconnected", { lastError: typeof reason === "string" ? reason : "Disconnected from WhatsApp Web." });
     });
 
     client.on("message", async (message) => {
