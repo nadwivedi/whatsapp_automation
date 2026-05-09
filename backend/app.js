@@ -56,7 +56,10 @@ app.get("/", (_req, res) => {
   });
 });
 
+const adminRoutes = require("./routes/adminRoutes");
+
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/accounts", requireAuth, accountRoutes);
 app.use("/api/templates", requireAuth, templateRoutes);
 app.use("/api/campaigns", requireAuth, campaignRoutes);

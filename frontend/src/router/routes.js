@@ -6,6 +6,7 @@ export const ROUTES = {
   campaigns: "/campaigns",
   messages: "/messages",
   settings: "/settings",
+  admin: "/admin",
 };
 
 export const NAV_ITEMS = [
@@ -16,6 +17,7 @@ export const NAV_ITEMS = [
   { key: "campaigns", label: "Campaigns", icon: "CP", path: ROUTES.campaigns },
   { key: "messages", label: "Messages", icon: "MS", path: ROUTES.messages },
   { key: "settings", label: "Settings", icon: "ST", path: ROUTES.settings },
+  { key: "admin", label: "Admin", icon: "AD", path: ROUTES.admin },
 ];
 
 const ROUTE_KEYS = Object.fromEntries(NAV_ITEMS.map((item) => [item.path, item.key]));

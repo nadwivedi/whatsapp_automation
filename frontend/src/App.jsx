@@ -11,6 +11,7 @@ import ContactPage from "./pages/Contact";
 import CampaignsPage from "./pages/CampaignsPage";
 import MessagesPage from "./pages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
+import AdminPage from "./pages/AdminPage";
 
 function App() {
   const app = useWhatsAppManager();
@@ -157,6 +158,21 @@ function App() {
           runDataMigration={app.runDataMigration}
           refreshAll={app.refreshAll}
           refreshing={app.refreshing}
+        />
+      );
+    }
+
+    if (activeRoute === "admin" && app.profile?.user?.role === "admin") {
+      return (
+        <AdminPage
+          users={app.users}
+          usersLoading={app.usersLoading}
+          loadUsers={app.loadUsers}
+          createUser={app.createUser}
+          resetUserPassword={app.resetUserPassword}
+          toggleUser={app.toggleUser}
+          busy={app.busy}
+          setNotice={app.setNotice}
         />
       );
     }

@@ -53,6 +53,12 @@ import {
   clearAllChats as clearAllChatsApi,
   clearUnrepliedChats as clearUnrepliedChatsApi,
 } from "../api/repliesApi";
+import {
+  createUser as createUserApi,
+  listUsers as listUsersApi,
+  resetPassword as resetPasswordApi,
+  toggleUserStatus as toggleUserStatusApi,
+} from "../api/adminApi";
 import { REPLIES_WS_URL } from "../api/client";
 import { countRecipients } from "../utils/formatters";
 
@@ -130,6 +136,8 @@ export function useWhatsAppManager() {
   const [activeConversationNumber, setActiveConversationNumber] = useState("");
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   const [booting, setBooting] = useState(true);
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -1148,6 +1156,64 @@ export function useWhatsAppManager() {
     }
   }
 
+
+  async function loadUsers() {
+    if (!token || profile?.user?.role !== "admin") return;
+    setUsersLoading(true);
+    try {
+      const data = await listUsersApi(token, () => setToken(""));
+      setUsers(data || []);
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+    } finally {
+      setUsersLoading(false);
+    }
+  }
+
+  async function createUser(payload) {
+    setBusy("create-user");
+    try {
+      await createUserApi(token, payload, () => setToken(""));
+      setNotice({ type: "success", text: "User created successfully." });
+      await loadUsers();
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function resetUserPassword(userId, newPassword) {
+    setBusy(`reset-password-${userId}`);
+    try {
+      await resetPasswordApi(token, userId, newPassword, () => setToken(""));
+      setNotice({ type: "success", text: "Password reset successful." });
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function toggleUser(userId) {
+    setBusy(`toggle-user-${userId}`);
+    try {
+      await toggleUserStatusApi(token, userId, () => setToken(""));
+      await loadUsers();
+      setNotice({ type: "success", text: "User status updated." });
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
   return {
     token,
     profile,
@@ -1162,6 +1228,8 @@ export function useWhatsAppManager() {
     activeConversationNumber,
     selectedCampaign,
     messages,
+    users,
+    usersLoading,
     booting,
     dashboardLoading,
     messagesLoading,
@@ -1233,5 +1301,9 @@ export function useWhatsAppManager() {
     clearAllChats,
     clearUnrepliedChats,
     runDataMigration,
+    loadUsers,
+    createUser,
+    resetUserPassword,
+    toggleUser,
   };
 }

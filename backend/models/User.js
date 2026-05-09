@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const USER_ROLES = ["member", "admin"];
+
 
 const userSchema = new mongoose.Schema(
   {
@@ -10,6 +10,13 @@ const userSchema = new mongoose.Schema(
       trim: true,
       minlength: 2,
       maxlength: 80,
+    },
+    email: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+      lowercase: true,
     },
     mobileNumber: {
       type: String,
@@ -23,7 +30,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: USER_ROLES,
+      enum: ["member", "admin"],
       default: "member",
     },
     isActive: {
@@ -37,5 +44,5 @@ const userSchema = new mongoose.Schema(
 
 module.exports = {
   User: mongoose.model("User", userSchema),
-  USER_ROLES,
 };
+

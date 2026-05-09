@@ -259,7 +259,59 @@ class WhatsappSessionManager {
     });
 
     try {
-      await client.initialize();
+      await new Promise((resolve, reject) => {
+        let finished = false;
+        const cleanup = () => {
+          client.off("ready", onReady);
+          client.off("qr", onQr);
+          client.off("auth_failure", onAuthFailure);
+          client.off("disconnected", onDisconnected);
+        };
+        const onReady = () => {
+          if (finished) return;
+          finished = true;
+          cleanup();
+          resolve();
+        };
+        const onQr = () => {
+          if (finished) return;
+          finished = true;
+          cleanup();
+          resolve();
+        };
+        const onAuthFailure = (msg) => {
+          if (finished) return;
+          finished = true;
+          cleanup();
+          reject(new Error(msg || "Auth failure"));
+        };
+        const onDisconnected = (reason) => {
+          if (finished) return;
+          finished = true;
+          cleanup();
+          reject(new Error(typeof reason === "string" ? reason : "Disconnected during init"));
+        };
+
+        client.on("ready", onReady);
+        client.on("qr", onQr);
+        client.on("auth_failure", onAuthFailure);
+        client.on("disconnected", onDisconnected);
+
+        client.initialize().catch((err) => {
+          if (finished) return;
+          finished = true;
+          cleanup();
+          reject(err);
+        });
+
+        // Timeout after 45 seconds
+        setTimeout(() => {
+          if (finished) return;
+          finished = true;
+          cleanup();
+          resolve(); // Resolve anyway to avoid hanging forever, health check will see current state
+        }, 45000);
+      });
     } catch (error) {
       this.clients.delete(mapKey);
       const errorMessage = this.isProfileLockedError(error)
@@ -272,7 +324,17 @@ class WhatsappSessionManager {
       throw new Error(errorMessage);
     }
 
-    return WaAccount.findById(account._id);
+    let finalAccount = await WaAccount.findById(account._id);
+    // If it's still "initializing", wait a few seconds for the 'ready' event's DB update to commit
+    if (finalAccount && finalAccount.status === "initializing") {
+      for (let i = 0; i < 10; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        finalAccount = await WaAccount.findById(account._id);
+        if (finalAccount.status !== "initializing") break;
+      }
+    }
+
+    return finalAccount;
   }
 
   async stopSession(accountId) {

@@ -142,13 +142,30 @@ async function register(req, res) {
   });
 }
 
+const FailedLogin = require("../models/FailedLogin");
+
 async function login(req, res) {
   const { mobileNumber, password } = req.body || {};
   const normalizedMobile = normalizeMobile(mobileNumber);
+  const clientIp = getClientIp(req);
   const attemptKey = getAuthAttemptKey(req, normalizedMobile);
 
+  // 1. Memory-based rate limit (existing)
   if (isRateLimited(attemptKey)) {
     return res.status(429).json({ message: "Too many auth attempts. Please wait and try again." });
+  }
+
+  // 2. Strict IP-based blocking (2 failures in 24h)
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const ipFailures = await FailedLogin.countDocuments({
+    ip: clientIp,
+    attemptedAt: { $gte: oneDayAgo },
+  });
+
+  if (ipFailures >= 2) {
+    return res.status(403).json({
+      message: "This IP address is temporarily blocked due to multiple failed login attempts. Please try again later.",
+    });
   }
 
   if (!normalizedMobile || !password) {
@@ -157,14 +174,30 @@ async function login(req, res) {
   }
 
   const user = await User.findOne({ mobileNumber: normalizedMobile });
+  
   if (!user || !verifyPassword(password, user.passwordHash)) {
+    // Record failed attempt in DB for IP blocking
+    await FailedLogin.create({
+      ip: clientIp,
+      mobileNumber: normalizedMobile,
+    });
+
     recordFailedAttempt(attemptKey);
     return res.status(401).json({ message: "Invalid mobile number or password." });
+  }
+
+  if (!user.isActive) {
+    return res.status(403).json({ message: "This account has been deactivated." });
   }
 
   const token = signAuthToken({ sub: String(user._id), role: user.role });
   attachAuthCookie(res, token);
   clearFailedAttempts(attemptKey);
+  
+  // Optional: clear IP failures on successful login? 
+  // Usually, we don't clear IP failures if it's meant to be strict, 
+  // but if they finally got it right, maybe we should. 
+  // The prompt says "2 wrong password in a day", so I'll keep them.
 
   const stats = await buildStats(user._id);
   return res.json({
@@ -172,6 +205,7 @@ async function login(req, res) {
     stats,
   });
 }
+
 
 async function logout(_req, res) {
   clearAuthCookie(res);

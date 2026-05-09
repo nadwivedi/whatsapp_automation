@@ -42,7 +42,7 @@ function AppShell({
           </div>
 
           <nav className="flex-1 space-y-1.5 sm:space-y-2">
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.filter(item => item.key !== "admin" || profile?.user?.role === "admin").map((item) => (
               <button
                 key={item.key}
                 type="button"
