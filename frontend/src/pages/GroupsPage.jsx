@@ -235,7 +235,7 @@ function GroupsPage({
 
       // 2. Prepare contacts
       const contactsToSave = participants.map(p => ({
-        name: p.name || p.pushName || p.mobile,
+        name: p.name || p.pushName || "",
         mobile: p.mobile,
         contactCategoryId: categoryId,
         state: "",

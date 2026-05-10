@@ -71,10 +71,10 @@ function normalizeContactPayload(input = {}) {
 function validateContactPayload(payload) {
   const errors = [];
 
-  if (!payload.name || payload.name.length < 2) {
+  if (payload.name && payload.name.length < 1) {
     errors.push({
       field: "name",
-      message: "name is required and must be at least 2 characters.",
+      message: "name must be at least 1 character.",
     });
   }
 
@@ -240,12 +240,10 @@ async function bulkInsertContacts(req, res) {
       categoryInput: payload.categoryInput || defaultCategoryInput,
     });
     if (validationErrors.length) {
-      validationErrors.forEach((fieldError) => {
-        errors.push({
-          index,
-          field: fieldError.field,
-          message: fieldError.message,
-        });
+      errors.push({
+        index,
+        mobile: item.mobile || "unknown",
+        reason: validationErrors.map((e) => e.message).join(", "),
       });
       return;
     }
@@ -254,8 +252,8 @@ async function bulkInsertContacts(req, res) {
     if (!category) {
       errors.push({
         index,
-        field: "contactCategory",
-        message: `Category not found for item. Provided value: "${payload.categoryInput || defaultCategoryInput}".`,
+        mobile: payload.mobile,
+        reason: `Category not found: "${payload.categoryInput || defaultCategoryInput}".`,
       });
       return;
     }
@@ -284,13 +282,7 @@ async function bulkInsertContacts(req, res) {
     });
   });
 
-  if (errors.length) {
-    return res.status(400).json({
-      message: "Bulk insert validation failed.",
-      errors: errors.slice(0, 100),
-      totalErrors: errors.length,
-    });
-  }
+  // We no longer return 400 if there are errors. We skip them and continue.
 
   const categoryIds = [...new Set(normalizedDocs.map((doc) => String(doc.contactCategory)))];
   const mobiles = [...new Set(normalizedDocs.map((doc) => doc.mobile))];
@@ -333,14 +325,14 @@ async function bulkInsertContacts(req, res) {
   return res.status(201).json({
     insertedCount: inserted.length,
     skippedDuplicateCount: duplicateItems.length,
+    invalidCount: errors.length,
     duplicates: duplicateItems.slice(0, 100),
+    invalidItems: errors.slice(0, 100),
     contacts: contacts.slice(0, 100),
     message:
-      inserted.length > 100
-        ? "Contacts inserted. Response includes first 100 records."
-        : duplicateItems.length
-          ? "Contacts inserted. Duplicate mobile numbers in the same category were skipped."
-          : "Contacts inserted.",
+      inserted.length > 0
+        ? `Contacts inserted (${inserted.length}). ${errors.length ? `${errors.length} invalid items skipped.` : ""} ${duplicateItems.length ? `${duplicateItems.length} duplicates skipped.` : ""}`
+        : "No new contacts were inserted (all were either invalid or duplicates).",
   });
 }
 

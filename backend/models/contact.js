@@ -10,9 +10,8 @@ const contactSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
-      minlength: 2,
       maxlength: 120,
     },
     mobile: {
