@@ -260,9 +260,6 @@ async function createCampaign(req, res) {
   if (!uniqueAccountIds.length) {
     return res.status(400).json({ message: "At least one account is required." });
   }
-  if (!templateId) {
-    return res.status(400).json({ message: "templateId is required." });
-  }
   if (maxMessages == null) {
     return res.status(400).json({ message: "maxMessages is required." });
   }
@@ -279,18 +276,27 @@ async function createCampaign(req, res) {
     });
   }
 
-  const template = await MessageTemplate.findOne({
-    _id: templateId,
-    owner: req.user._id,
-  });
-  if (!template || !template.isActive) {
-    return res.status(400).json({ message: "Selected template is invalid or inactive." });
+  if (templateId) {
+    const template = await MessageTemplate.findOne({
+      _id: templateId,
+      owner: req.user._id,
+    });
+    if (!template || !template.isActive) {
+      return res.status(400).json({ message: "Selected template is invalid or inactive." });
+    }
+    messageBody = template.body;
+    mediaData = template.mediaData || null;
+    mediaType = template.mediaType || null;
+    mediaMimeType = template.mediaMimeType || null;
+    mediaFileName = template.mediaFileName || null;
+  } else {
+    // Use direct inputs from body
+    messageBody = req.body?.messageBody || "";
+    mediaData = req.body?.mediaData || null;
+    mediaType = req.body?.mediaType || null;
+    mediaMimeType = req.body?.mediaMimeType || null;
+    mediaFileName = req.body?.mediaFileName || null;
   }
-  messageBody = template.body;
-  mediaData = template.mediaData || null;
-  mediaType = template.mediaType || null;
-  mediaMimeType = template.mediaMimeType || null;
-  mediaFileName = template.mediaFileName || null;
 
   const normalizedBody = typeof messageBody === "string" ? messageBody.trim() : "";
   if (!normalizedBody && !mediaData) {

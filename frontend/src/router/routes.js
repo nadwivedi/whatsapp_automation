@@ -7,6 +7,7 @@ export const ROUTES = {
   messages: "/messages",
   settings: "/settings",
   admin: "/admin",
+  groups: "/groups",
 };
 
 export const NAV_ITEMS = [
@@ -18,6 +19,7 @@ export const NAV_ITEMS = [
   { key: "messages", label: "Messages", icon: "MS", path: ROUTES.messages },
   { key: "settings", label: "Settings", icon: "ST", path: ROUTES.settings },
   { key: "admin", label: "Admin", icon: "AD", path: ROUTES.admin },
+  { key: "groups", label: "Groups", icon: "GP", path: ROUTES.groups },
 ];
 
 const ROUTE_KEYS = Object.fromEntries(NAV_ITEMS.map((item) => [item.path, item.key]));

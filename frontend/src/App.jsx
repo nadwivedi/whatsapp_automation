@@ -12,6 +12,7 @@ import CampaignsPage from "./pages/CampaignsPage";
 import MessagesPage from "./pages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
+import GroupsPage from "./pages/GroupsPage";
 
 function App() {
   const app = useWhatsAppManager();
@@ -173,6 +174,24 @@ function App() {
           toggleUser={app.toggleUser}
           busy={app.busy}
           setNotice={app.setNotice}
+        />
+      );
+    }
+
+    if (activeRoute === "groups") {
+      return (
+        <GroupsPage
+          accounts={app.accounts}
+          listAccountGroups={app.listAccountGroups}
+          refreshAll={app.refreshAll}
+          refreshing={app.refreshing}
+          createCampaign={app.createCampaign}
+          templates={app.templates}
+          getGroupParticipants={app.getGroupParticipants}
+          contactCategories={app.contactCategories}
+          createContactCategory={app.createContactCategory}
+          bulkInsertContacts={app.bulkInsertContacts}
+          accountAction={app.accountAction}
         />
       );
     }

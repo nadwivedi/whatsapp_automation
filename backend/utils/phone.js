@@ -3,6 +3,11 @@ function normalizeNumber(raw) {
     return null;
   }
 
+  // Handle WhatsApp Group IDs
+  if (raw.endsWith("@g.us")) {
+    return raw;
+  }
+
   const digits = raw.replace(/[^\d]/g, "");
   if (!digits) return null;
 
@@ -20,6 +25,9 @@ function normalizeNumber(raw) {
 }
 
 function toWhatsAppRecipient(raw) {
+  if (typeof raw === "string" && raw.endsWith("@g.us")) {
+    return raw;
+  }
   const normalized = normalizeNumber(raw);
   if (!normalized) {
     return null;
@@ -33,6 +41,10 @@ function parseRecipients(inputText) {
   const uniqueNumbers = new Set();
 
   for (const token of rawTokens) {
+    if (token.endsWith("@g.us")) {
+      uniqueNumbers.add(token);
+      continue;
+    }
     const normalized = normalizeNumber(token);
     if (normalized) {
       uniqueNumbers.add(normalized);

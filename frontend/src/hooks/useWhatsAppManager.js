@@ -513,13 +513,15 @@ export function useWhatsAppManager() {
     }
   }
 
-  async function accountAction(accountId, action) {
+  async function accountAction(accountId, action, silent = false) {
     setBusy(`${action}-${accountId}`);
     try {
       if (action === "start") await startAccount(token, accountId);
       else await stopAccount(token, accountId);
 
-      setNotice({ type: "success", text: action === "start" ? "Session started." : "Session stopped." });
+      if (!silent) {
+        setNotice({ type: "success", text: action === "start" ? "Session started." : "Session stopped." });
+      }
       await refreshAll();
     } catch (error) {
       setNotice({ type: "error", text: error.message });
@@ -680,8 +682,10 @@ export function useWhatsAppManager() {
     }
   }
 
-  async function createCampaign(e) {
-    e.preventDefault();
+  async function createCampaign(e, overridePayload = null) {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+
+    const formToUse = overridePayload || campaignForm;
     const eligibleAccountIds = accounts
       .filter((account) => account.isActive !== false && account.status === "authenticated")
       .map((account) => account._id);
@@ -690,20 +694,28 @@ export function useWhatsAppManager() {
       setNotice({ type: "error", text: "No active authenticated sessions available for sending." });
       return false;
     }
-    if (!campaignForm.maxMessages) {
+    if (!formToUse.maxMessages) {
       setNotice({ type: "error", text: "Total messages to send is required." });
       return false;
     }
-    if (!campaignForm.templateId) {
-      setNotice({ type: "error", text: "Please select a message template." });
+    let finalMessageBody = "";
+    if (formToUse.templateId) {
+      const selectedTemplate = templates.find((t) => t._id === formToUse.templateId);
+      if (!selectedTemplate) {
+        setNotice({ type: "error", text: "Selected template is invalid." });
+        return false;
+      }
+      finalMessageBody = selectedTemplate.body || "";
+    } else {
+      finalMessageBody = formToUse.messageBody || "";
+    }
+
+    if (!finalMessageBody && !formToUse.mediaData) {
+      setNotice({ type: "error", text: "Please provide a message or media." });
       return false;
     }
-    const selectedTemplate = templates.find((t) => t._id === campaignForm.templateId);
-    if (!selectedTemplate) {
-      setNotice({ type: "error", text: "Selected template is invalid." });
-      return false;
-    }
-    if (campaignForm.dateFrom && campaignForm.dateTo && campaignForm.dateFrom > campaignForm.dateTo) {
+
+    if (formToUse.dateFrom && formToUse.dateTo && formToUse.dateFrom > formToUse.dateTo) {
       setNotice({ type: "error", text: "Campaign From date cannot be later than Campaign To date." });
       return false;
     }
@@ -711,29 +723,35 @@ export function useWhatsAppManager() {
     try {
       // Use user-selected sessions; fall back to all eligible if none chosen
       const chosenIds =
-        Array.isArray(campaignForm.accountIds) && campaignForm.accountIds.length
-          ? campaignForm.accountIds
+        Array.isArray(formToUse.accountIds) && formToUse.accountIds.length
+          ? formToUse.accountIds
           : eligibleAccountIds;
 
       await createCampaignApi(token, {
-        title: campaignForm.title.trim(),
+        title: (formToUse.title || "").trim(),
         accountIds: chosenIds,
-        templateId: campaignForm.templateId,
-        messageBody: selectedTemplate.body || "",
-        recipientsText: campaignForm.recipientsText,
-        maxMessages: Number(campaignForm.maxMessages),
-        perRecipientMessageLimit: Number(campaignForm.perRecipientMessageLimit || 1),
-        dateFrom: campaignForm.dateFrom || undefined,
-        dateTo: campaignForm.dateTo || undefined,
+        templateId: formToUse.templateId || null,
+        messageBody: finalMessageBody,
+        recipientsText: formToUse.recipientsText,
+        maxMessages: Number(formToUse.maxMessages),
+        perRecipientMessageLimit: Number(formToUse.perRecipientMessageLimit || 1),
+        dateFrom: formToUse.dateFrom || undefined,
+        dateTo: formToUse.dateTo || undefined,
+        mediaData: formToUse.mediaData || null,
+        mediaType: formToUse.mediaType || null,
+        mediaMimeType: formToUse.mediaMimeType || null,
+        mediaFileName: formToUse.mediaFileName || null,
       });
-      setCampaignForm((prev) => ({
-        ...prev,
-        title: "",
-        recipientsText: "",
-        maxMessages: "",
-        perRecipientMessageLimit: "1",
-        ...getDefaultCampaignDates(),
-      }));
+      if (!overridePayload) {
+        setCampaignForm((prev) => ({
+          ...prev,
+          title: "",
+          recipientsText: "",
+          maxMessages: "",
+          perRecipientMessageLimit: "1",
+          ...getDefaultCampaignDates(),
+        }));
+      }
       setNotice({ type: "success", text: "Campaign queued." });
       await refreshAll();
       return true;

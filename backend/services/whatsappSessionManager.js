@@ -437,6 +437,10 @@ class WhatsappSessionManager {
   }
 
   async resolveRecipientChatId(client, normalized) {
+    if (normalized.includes("@")) {
+      return normalized;
+    }
+
     const candidates = [normalized, `+${normalized}`];
     for (const candidate of candidates) {
       try {
