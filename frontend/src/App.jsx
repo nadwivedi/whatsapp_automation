@@ -14,12 +14,17 @@ import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import GroupsPage from "./pages/GroupsPage";
+import AdminAppShell from "./components/AdminAppShell";
 
 function App() {
   const app = useWhatsAppManager();
   const { pathname, navigate } = usePathRoute();
   const activeRoute = getRouteKey(pathname);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Determine if we should use the Admin Shell
+  const isAdminView = app.profile?.user?.role === "admin";
+  const SelectedShell = isAdminView ? AdminAppShell : AppShell;
 
   // Show admin login page at /adm if user is not logged in OR is not an admin
   if (pathname === "/adm" && app.profile?.user?.role !== "admin") {
@@ -185,6 +190,10 @@ function App() {
           createUser={app.createUser}
           resetUserPassword={app.resetUserPassword}
           toggleUser={app.toggleUser}
+          updateUser={app.updateUser}
+          deleteUser={app.deleteUser}
+          securityAlerts={app.securityAlerts}
+          loadSecurityAlerts={app.loadSecurityAlerts}
           busy={app.busy}
           setNotice={app.setNotice}
         />
@@ -222,7 +231,7 @@ function App() {
 
   return (
     <>
-      <AppShell
+      <SelectedShell
         profile={app.profile}
         notice={app.notice}
         mobileMenuOpen={mobileMenuOpen}
@@ -233,7 +242,7 @@ function App() {
         onMessagesRouteOpen={app.openInbox}
       >
         {renderPage()}
-      </AppShell>
+      </SelectedShell>
 
       {app.booting && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/20 backdrop-blur-[2px]">

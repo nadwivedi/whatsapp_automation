@@ -1,4 +1,5 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const mongoose = require("mongoose");
 const readline = require("readline");
 const connectMongo = require("../db/connectMongo");
@@ -18,16 +19,17 @@ async function main() {
   try {
     await connectMongo();
     console.log("Connected to MongoDB.");
+    console.log("Creating Primary Administrator account...");
 
-    const name = await question("Enter Admin Name: ");
     const email = await question("Enter Admin Email: ");
-    const mobileNumber = await question("Enter Admin Mobile Number: ");
     const password = await question("Enter Admin Password: ");
 
-    if (!name || !email || !mobileNumber || !password) {
-      console.error("All fields are required.");
+    if (!email || !password) {
+      console.error("Email and password are required.");
       process.exit(1);
     }
+
+    const mobileNumber = email.toLowerCase();
 
     const existingUser = await User.findOne({ $or: [{ email: email.toLowerCase() }, { mobileNumber }] });
     if (existingUser) {
@@ -36,8 +38,8 @@ async function main() {
     }
 
     const admin = new User({
-      name,
-      email: email.toLowerCase(),
+      name: "Administrator",
+      email: email ? email.toLowerCase() : undefined,
       mobileNumber,
       passwordHash: hashPassword(password),
       role: "admin",

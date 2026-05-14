@@ -4,21 +4,12 @@ function AuthPage({ authMode, authBusy, authForm, setAuthMode, setAuthForm, subm
       <div className="glass-panel w-full max-w-xl rounded-2xl sm:rounded-3xl p-5 sm:p-8">
         <p className="font-heading text-xs sm:text-sm uppercase tracking-[0.22em] text-slate-500">WhatsApp System</p>
         <h1 className="font-heading mt-2 text-2xl sm:text-3xl text-slate-900">
-          {authMode === "login" ? "Login" : "Create Account"}
+          Login
         </h1>
         <form className="mt-4 sm:mt-5 space-y-3" onSubmit={submitAuth}>
-          {authMode === "register" && (
-            <input
-              className="input"
-              placeholder="Full name"
-              value={authForm.name}
-              onChange={(e) => setAuthForm((p) => ({ ...p, name: e.target.value }))}
-              required
-            />
-          )}
           <input
             className="input"
-            placeholder="Mobile number"
+            placeholder="Mobile number or Email"
             value={authForm.mobileNumber}
             onChange={(e) => setAuthForm((p) => ({ ...p, mobileNumber: e.target.value }))}
             required
@@ -31,17 +22,10 @@ function AuthPage({ authMode, authBusy, authForm, setAuthMode, setAuthForm, subm
             onChange={(e) => setAuthForm((p) => ({ ...p, password: e.target.value }))}
             required
           />
-          <button className="btn-cyan w-full" disabled={authBusy}>
-            {authBusy ? "Please wait..." : authMode === "login" ? "Login" : "Register"}
+          <button className="btn-cyan w-full py-3 shadow-lg shadow-cyan-500/20" disabled={authBusy}>
+            {authBusy ? "Authenticating..." : "Login to Account"}
           </button>
         </form>
-        <button
-          type="button"
-          className="mt-4 text-xs sm:text-sm font-semibold text-cyan-700 hover:text-cyan-600"
-          onClick={() => setAuthMode((p) => (p === "login" ? "register" : "login"))}
-        >
-          {authMode === "login" ? "Need an account? Register" : "Already have an account? Login"}
-        </button>
         {notice && (
           <div
             className={`mt-4 rounded-xl px-3 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm font-medium ${

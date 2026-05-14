@@ -21,11 +21,12 @@ function AdminLoginPage({ authBusy, submitAuth, notice }) {
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">
-              Mobile Number
+              Email Address
             </label>
             <input
               className="input w-full bg-slate-50/50 border-slate-200 focus:border-cyan-500 focus:ring-cyan-500/10"
-              placeholder="Enter admin mobile"
+              type="email"
+              placeholder="admin@example.com"
               value={adminAuthForm.mobileNumber}
               onChange={(e) => setAdminAuthForm((p) => ({ ...p, mobileNumber: e.target.value }))}
               required

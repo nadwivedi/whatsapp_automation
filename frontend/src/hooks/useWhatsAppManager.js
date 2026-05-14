@@ -441,12 +441,15 @@ export function useWhatsAppManager() {
   }
 
   async function submitAuth(e, overrideForm = null) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setAuthBusy(true);
     const formToUse = overrideForm || authForm;
+    // Admin login always uses login mode
+    const modeToUse = overrideForm ? "login" : authMode;
+
     try {
       const payload =
-        authMode === "login"
+        modeToUse === "login"
           ? await login({
             mobileNumber: formToUse.mobileNumber.trim(),
             password: formToUse.password,

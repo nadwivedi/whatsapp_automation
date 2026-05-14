@@ -63,7 +63,12 @@ function normalizeMobile(raw) {
   if (typeof raw !== "string") {
     return "";
   }
-  return raw.trim().replace(/[^\d+]/g, "");
+  const trimmed = raw.trim();
+  // If it looks like an email, don't strip characters
+  if (trimmed.includes("@") && trimmed.includes(".")) {
+    return trimmed;
+  }
+  return trimmed.replace(/[^\d+]/g, "");
 }
 
 function sanitizeUser(userDoc) {
@@ -94,51 +99,8 @@ async function buildStats(userId) {
 }
 
 async function register(req, res) {
-  const { name, mobileNumber, password } = req.body || {};
-  const normalizedMobile = normalizeMobile(mobileNumber);
-  const attemptKey = getAuthAttemptKey(req, normalizedMobile);
-
-  if (isRateLimited(attemptKey)) {
-    return res.status(429).json({ message: "Too many auth attempts. Please wait and try again." });
-  }
-
-  if (!name || typeof name !== "string" || name.trim().length < 2) {
-    recordFailedAttempt(attemptKey);
-    return res.status(400).json({ message: "Name must be at least 2 characters." });
-  }
-
-  if (!/^\+?\d{8,15}$/.test(normalizedMobile)) {
-    recordFailedAttempt(attemptKey);
-    return res
-      .status(400)
-      .json({ message: "Mobile number must be valid and contain 8 to 15 digits." });
-  }
-
-  if (!password || typeof password !== "string" || password.length < 6) {
-    recordFailedAttempt(attemptKey);
-    return res.status(400).json({ message: "Password must be at least 6 characters." });
-  }
-
-  const existing = await User.findOne({ mobileNumber: normalizedMobile });
-  if (existing) {
-    recordFailedAttempt(attemptKey);
-    return res.status(409).json({ message: "Mobile number is already registered." });
-  }
-
-  const user = await User.create({
-    name: name.trim(),
-    mobileNumber: normalizedMobile,
-    passwordHash: hashPassword(password),
-  });
-
-  const token = signAuthToken({ sub: String(user._id), role: user.role });
-  attachAuthCookie(res, token);
-  clearFailedAttempts(attemptKey);
-
-  const stats = await buildStats(user._id);
-  return res.status(201).json({
-    user: sanitizeUser(user),
-    stats,
+  return res.status(403).json({ 
+    message: "Public registration is disabled. Please contact an administrator to create an account." 
   });
 }
 
@@ -173,7 +135,12 @@ async function login(req, res) {
     return res.status(400).json({ message: "Mobile number and password are required." });
   }
 
-  const user = await User.findOne({ mobileNumber: normalizedMobile });
+  const user = await User.findOne({ 
+    $or: [
+      { mobileNumber: normalizedMobile },
+      { email: normalizedMobile.toLowerCase() }
+    ]
+  });
   
   if (!user || !verifyPassword(password, user.passwordHash)) {
     // Record failed attempt in DB for IP blocking

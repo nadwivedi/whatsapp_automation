@@ -45,6 +45,11 @@ const PORT = Number(process.env.PORT || 5000);
 async function startServer() {
   await connectMongo();
   await runDataMigrations();
+  
+  // Clear all IP restrictions (failed login records) on restart as requested
+  const FailedLogin = require("./models/FailedLogin");
+  await FailedLogin.deleteMany({});
+  
   campaignQueue.start();
   initHealthCheckJob();
   // REMOVED: await whatsappSessionManager.restoreActiveSessions();
