@@ -32,3 +32,25 @@ export async function toggleUserStatus(_token, userId, onUnauthorized) {
     onUnauthorized,
   });
 }
+
+export async function updateUser(_token, userId, payload, onUnauthorized) {
+  return apiRequest(`/admin/users/${userId}`, {
+    options: {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+    onUnauthorized,
+  });
+}
+
+export async function deleteUser(_token, userId, onUnauthorized) {
+  return apiRequest(`/admin/users/${userId}`, {
+    options: {
+      method: "DELETE",
+    },
+    onUnauthorized,
+  });
+}
+export async function getSecurityAlerts(_token, onUnauthorized) {
+  return apiRequest("/admin/security-alerts", { onUnauthorized });
+}

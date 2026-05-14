@@ -58,6 +58,8 @@ import {
   listUsers as listUsersApi,
   resetPassword as resetPasswordApi,
   toggleUserStatus as toggleUserStatusApi,
+  updateUser as updateUserApi,
+  deleteUser as deleteUserApi,
 } from "../api/adminApi";
 import { REPLIES_WS_URL } from "../api/client";
 import { countRecipients } from "../utils/formatters";
@@ -138,6 +140,7 @@ export function useWhatsAppManager() {
   const [messages, setMessages] = useState([]);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [securityAlerts, setSecurityAlerts] = useState([]);
 
   const [booting, setBooting] = useState(true);
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -437,20 +440,21 @@ export function useWhatsAppManager() {
     }
   }
 
-  async function submitAuth(e) {
+  async function submitAuth(e, overrideForm = null) {
     e.preventDefault();
     setAuthBusy(true);
+    const formToUse = overrideForm || authForm;
     try {
       const payload =
         authMode === "login"
           ? await login({
-            mobileNumber: authForm.mobileNumber.trim(),
-            password: authForm.password,
+            mobileNumber: formToUse.mobileNumber.trim(),
+            password: formToUse.password,
           })
           : await register({
-            name: authForm.name.trim(),
-            mobileNumber: authForm.mobileNumber.trim(),
-            password: authForm.password,
+            name: formToUse.name.trim(),
+            mobileNumber: formToUse.mobileNumber.trim(),
+            password: formToUse.password,
           });
 
       setToken("session");
@@ -1232,6 +1236,49 @@ export function useWhatsAppManager() {
     }
   }
 
+  async function updateUser(userId, payload) {
+    setBusy(`update-user-${userId}`);
+    try {
+      await updateUserApi(token, userId, payload, () => setToken(""));
+      await loadUsers();
+      setNotice({ type: "success", text: "User updated successfully." });
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteUser(userId) {
+    const yes = window.confirm("Are you sure you want to delete this user?");
+    if (!yes) return false;
+    setBusy(`delete-user-${userId}`);
+    try {
+      await deleteUserApi(token, userId, () => setToken(""));
+      await loadUsers();
+      setNotice({ type: "success", text: "User deleted successfully." });
+      return true;
+    } catch (error) {
+      setNotice({ type: "error", text: error.message });
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function loadSecurityAlerts() {
+    try {
+      const payload = await adminApi.getSecurityAlerts(token, () => setToken(""));
+      if (payload) {
+        setSecurityAlerts(payload);
+      }
+    } catch (e) {
+      console.error("Failed to load security alerts", e);
+    }
+  }
+
   return {
     token,
     profile,
@@ -1248,6 +1295,7 @@ export function useWhatsAppManager() {
     messages,
     users,
     usersLoading,
+    securityAlerts,
     booting,
     dashboardLoading,
     messagesLoading,
@@ -1323,5 +1371,8 @@ export function useWhatsAppManager() {
     createUser,
     resetUserPassword,
     toggleUser,
+    updateUser,
+    deleteUser,
+    loadSecurityAlerts,
   };
 }

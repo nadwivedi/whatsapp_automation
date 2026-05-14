@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { formatDate } from "../utils/formatters";
 
-function SettingsPage({ settings, accounts, busy, saveSettings, runDataMigration, refreshAll, refreshing }) {
+function SettingsPage({ settings, accounts, busy, saveSettings, runDataMigration, refreshAll, refreshing, logout }) {
   const [form, setForm] = useState(() => ({
     perMobileDailyLimit: String(settings?.perMobileDailyLimit || 20),
     perMobileHourlyLimit: String(settings?.perMobileHourlyLimit || 2),
@@ -524,33 +524,25 @@ function SettingsPage({ settings, accounts, busy, saveSettings, runDataMigration
           )}
         </div>
       </div>
-      {/* Data Maintenance */}
-      <div className="glass-panel-dark mt-6 overflow-hidden rounded-2xl border-rose-200/50">
+      {/* Account Logout */}
+      <div className="glass-panel-dark overflow-hidden rounded-2xl border-rose-200/50">
         <div className="border-b border-rose-300/80 bg-gradient-to-r from-rose-100/70 to-orange-100/70 px-4 py-4 sm:px-6 sm:py-5">
-          <h2 className="font-heading text-lg font-semibold text-slate-900 sm:text-xl">🛠️ Data Maintenance</h2>
-          <p className="mt-1 text-xs text-slate-600 sm:text-sm">Standardize your database and fix mobile number formatting issues.</p>
+          <h2 className="font-heading text-lg font-semibold text-slate-900 sm:text-xl">🚪 Account Session</h2>
+          <p className="mt-1 text-xs text-slate-600 sm:text-sm">Safely sign out from the automation system on this device.</p>
         </div>
         <div className="p-4 sm:p-6">
-          <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3 sm:p-4">
-            <h3 className="text-sm font-semibold text-slate-800">Standardize Mobile Numbers (91 Prefix)</h3>
+          <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-4 sm:p-5">
+            <h3 className="text-sm font-semibold text-slate-800">Logout</h3>
             <p className="mt-1 text-xs text-slate-500">
-              This will automatically update all existing contacts and campaigns to use the 12-digit format (starting with 91). 
-              Run this if you transferred data from another system or are having trouble replying to messages.
+              This will clear your local session and return you to the login screen. 
+              Running campaigns will not be affected.
             </p>
             <div className="mt-4">
               <button 
-                onClick={runDataMigration}
-                className="btn-rose inline-flex items-center gap-2" 
-                disabled={busy === "migration"}
+                onClick={logout}
+                className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-bold px-10 py-3.5 rounded-xl transition-all shadow-xl shadow-red-600/20 active:scale-[0.98]" 
               >
-                {busy === "migration" ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Migrating...
-                  </>
-                ) : (
-                  "Migrate All Numbers to 91 Prefix"
-                )}
+                Sign Out Now
               </button>
             </div>
           </div>

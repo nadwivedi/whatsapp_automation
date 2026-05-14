@@ -12,6 +12,7 @@ import CampaignsPage from "./pages/CampaignsPage";
 import MessagesPage from "./pages/MessagesPage";
 import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
+import AdminLoginPage from "./pages/AdminLoginPage";
 import GroupsPage from "./pages/GroupsPage";
 
 function App() {
@@ -19,6 +20,17 @@ function App() {
   const { pathname, navigate } = usePathRoute();
   const activeRoute = getRouteKey(pathname);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Show admin login page at /adm if user is not logged in OR is not an admin
+  if (pathname === "/adm" && app.profile?.user?.role !== "admin") {
+    return (
+      <AdminLoginPage
+        authBusy={app.authBusy}
+        submitAuth={app.submitAuth}
+        notice={app.notice}
+      />
+    );
+  }
 
   if (!app.token) {
     return (
@@ -159,6 +171,7 @@ function App() {
           runDataMigration={app.runDataMigration}
           refreshAll={app.refreshAll}
           refreshing={app.refreshing}
+          logout={app.logout}
         />
       );
     }

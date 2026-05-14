@@ -8,11 +8,16 @@ function AdminPage({
   createUser,
   resetUserPassword,
   toggleUser,
+  updateUser,
+  deleteUser,
+  securityAlerts,
+  loadSecurityAlerts,
   busy,
   setNotice,
 }) {
   const [showCreatePopup, setShowCreatePopup] = useState(false);
   const [showResetPopup, setShowResetPopup] = useState(false);
+  const [showEditPopup, setShowEditPopup] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [newUserForm, setNewUserForm] = useState({
     name: "",
@@ -25,9 +30,16 @@ function AdminPage({
     newPassword: "",
     confirmPassword: "",
   });
+  const [editUserForm, setEditUserForm] = useState({
+    name: "",
+    email: "",
+    mobileNumber: "",
+    role: "member",
+  });
 
   useEffect(() => {
     loadUsers();
+    loadSecurityAlerts();
   }, []);
 
   async function handleCreateUser(e) {
@@ -58,22 +70,73 @@ function AdminPage({
     }
   }
 
+  async function handleUpdateUser(e) {
+    e.preventDefault();
+    const ok = await updateUser(selectedUser._id, editUserForm);
+    if (ok) {
+      setShowEditPopup(false);
+    }
+  }
+
+  async function handleDeleteUser(userId) {
+    await deleteUser(userId);
+  }
+
   return (
     <section className="space-y-4 sm:space-y-6">
       <header className="flex flex-wrap items-start sm:items-center justify-between gap-2">
         <div>
-          <p className="font-heading text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-500">System</p>
-          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-900">Admin Dashboard</h1>
+          <p className="font-heading text-xs sm:text-sm uppercase tracking-[0.2em] text-slate-500">Administrative</p>
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-slate-900">User Management</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn-cyan" onClick={() => setShowCreatePopup(true)}>
-            Create User
+        <div className="flex items-center gap-2">
+          <button className="btn-cyan" onClick={() => setShowCreatePopup(true)}>
+            Create New User
           </button>
-          <button className="btn-dark" onClick={loadUsers} disabled={usersLoading}>
-            {usersLoading ? "Refreshing..." : "Refresh Users"}
+          <button 
+            className="btn-dark px-3 py-2 flex items-center gap-2" 
+            onClick={() => { loadUsers(); loadSecurityAlerts(); }}
+            disabled={usersLoading}
+          >
+            {usersLoading ? (
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : "Refresh"}
           </button>
         </div>
       </header>
+
+      {/* Security Alerts Section */}
+      {securityAlerts && securityAlerts.length > 0 && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-4 sm:p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="bg-rose-500 rounded-lg p-2 shadow-lg shadow-rose-500/20">
+              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="font-heading text-lg font-bold text-rose-900">Security Alerts</h2>
+              <p className="text-sm text-rose-600">Recent failed login attempts detected</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {securityAlerts.map((alert) => (
+              <div key={alert._id} className="flex flex-col gap-1 rounded-xl bg-white px-4 py-3 border border-rose-100 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900">{alert.ip}</span>
+                  <span className="text-[10px] uppercase font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded">FAILED</span>
+                </div>
+                <div className="text-xs text-slate-500 truncate">
+                  Attempted: <span className="font-medium text-slate-700">{alert.mobileNumber || "Unknown"}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1">
+                  {new Date(alert.attemptedAt).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="glass-panel overflow-hidden rounded-2xl">
         <div className="overflow-x-auto">
@@ -110,6 +173,21 @@ function AdminPage({
                       className="text-cyan-600 hover:text-cyan-700 font-medium"
                       onClick={() => {
                         setSelectedUser(user);
+                        setEditUserForm({
+                          name: user.name,
+                          email: user.email || "",
+                          mobileNumber: user.mobileNumber,
+                          role: user.role,
+                        });
+                        setShowEditPopup(true);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="text-cyan-600 hover:text-cyan-700 font-medium"
+                      onClick={() => {
+                        setSelectedUser(user);
                         setShowResetPopup(true);
                       }}
                     >
@@ -121,6 +199,13 @@ function AdminPage({
                       disabled={busy === `toggle-user-${user._id}`}
                     >
                       {user.isActive ? "Deactivate" : "Activate"}
+                    </button>
+                    <button
+                      className="text-rose-600 hover:text-rose-700 font-medium"
+                      onClick={() => handleDeleteUser(user._id)}
+                      disabled={busy === `delete-user-${user._id}`}
+                    >
+                      Delete
                     </button>
                   </td>
                 </tr>
@@ -245,6 +330,67 @@ function AdminPage({
               </div>
               <button type="submit" className="btn-cyan w-full py-3" disabled={busy === `reset-password-${selectedUser?._id}`}>
                 {busy === `reset-password-${selectedUser?._id}` ? "Resetting..." : "Reset Password"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Popup */}
+      {showEditPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4" onClick={() => setShowEditPopup(false)}>
+          <div className="glass-panel w-full max-w-md rounded-2xl p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-heading text-xl font-bold text-slate-900">Edit User</h2>
+              <button onClick={() => setShowEditPopup(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleUpdateUser} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Full Name</label>
+                <input
+                  required
+                  className="input w-full"
+                  value={editUserForm.name}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Mobile Number</label>
+                  <input
+                    required
+                    className="input w-full"
+                    value={editUserForm.mobileNumber}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, mobileNumber: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Email (Optional)</label>
+                  <input
+                    type="email"
+                    className="input w-full"
+                    value={editUserForm.email}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Role</label>
+                <select
+                  className="input w-full"
+                  value={editUserForm.role}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <button type="submit" className="btn-cyan w-full py-3" disabled={busy === `update-user-${selectedUser?._id}`}>
+                {busy === `update-user-${selectedUser?._id}` ? "Updating..." : "Update User"}
               </button>
             </form>
           </div>

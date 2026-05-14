@@ -7,6 +7,7 @@ export const ROUTES = {
   messages: "/messages",
   settings: "/settings",
   admin: "/admin",
+  adminLogin: "/adm",
   groups: "/groups",
 };
 
@@ -26,6 +27,7 @@ const ROUTE_KEYS = Object.fromEntries(NAV_ITEMS.map((item) => [item.path, item.k
 ROUTE_KEYS["/contact-categories"] = "contacts";
 ROUTE_KEYS["/business-categories"] = "contacts";
 ROUTE_KEYS["/businesses"] = "contacts";
+ROUTE_KEYS[ROUTES.adminLogin] = "admin";
 
 export function getRouteKey(pathname) {
   return ROUTE_KEYS[pathname] || "dashboard";

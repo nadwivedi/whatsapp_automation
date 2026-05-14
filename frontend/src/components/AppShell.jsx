@@ -72,9 +72,9 @@ function AppShell({
                 logout();
                 setMobileMenuOpen(false);
               }}
-              className="flex w-full items-center gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-[15px] lg:text-[13px] font-medium text-rose-600 transition hover:bg-rose-50"
+              className="flex w-full items-center gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-[15px] lg:text-[13px] font-bold text-white bg-red-600 hover:bg-red-700 transition shadow-lg shadow-red-600/20"
             >
-              <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-rose-100 text-[10px] font-semibold">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-white/20 text-[10px] font-bold">
                 OUT
               </span>
               Logout

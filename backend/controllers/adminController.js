@@ -86,9 +86,81 @@ async function toggleUserStatus(req, res) {
   }
 }
 
+async function updateUser(req, res) {
+  try {
+    const { userId } = req.params;
+    const { name, email, mobileNumber, role } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (mobileNumber && mobileNumber !== user.mobileNumber) {
+      const existing = await User.findOne({ mobileNumber });
+      if (existing) {
+        return res.status(409).json({ message: "Mobile number already exists." });
+      }
+    }
+
+    if (email && email.toLowerCase() !== user.email) {
+      const existingEmail = await User.findOne({ email: email.toLowerCase() });
+      if (existingEmail) {
+        return res.status(409).json({ message: "Email already exists." });
+      }
+    }
+
+    user.name = name || user.name;
+    user.email = email ? email.toLowerCase() : user.email;
+    user.mobileNumber = mobileNumber || user.mobileNumber;
+    user.role = role || user.role;
+
+    await user.save();
+
+    const userObj = user.toObject();
+    delete userObj.passwordHash;
+
+    return res.json(userObj);
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to update user." });
+  }
+}
+
+async function deleteUser(req, res) {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    await User.findByIdAndDelete(userId);
+    return res.json({ message: "User deleted successfully." });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to delete user." });
+  }
+}
+
+async function getSecurityAlerts(req, res) {
+  try {
+    const FailedLogin = require("../models/FailedLogin");
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const alerts = await FailedLogin.find({ attemptedAt: { $gte: oneDayAgo } })
+      .sort({ attemptedAt: -1 })
+      .limit(15);
+    
+    return res.json(alerts);
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to fetch security alerts." });
+  }
+}
+
 module.exports = {
   getAllUsers,
   createUser,
   resetPassword,
   toggleUserStatus,
+  updateUser,
+  deleteUser,
+  getSecurityAlerts,
 };
