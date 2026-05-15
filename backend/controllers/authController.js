@@ -157,6 +157,15 @@ async function login(req, res) {
     return res.status(403).json({ message: "This account has been deactivated." });
   }
 
+  // Enforce role-based login portal restrictions
+  const isAdminPortalLogin = req.body?.isAdmin === true;
+  if (isAdminPortalLogin && user.role !== "admin") {
+    return res.status(403).json({ message: "This portal is reserved for administrators only." });
+  }
+  if (!isAdminPortalLogin && user.role === "admin") {
+    return res.status(403).json({ message: "Administrators must use the dedicated admin portal to login." });
+  }
+
   const token = signAuthToken({ sub: String(user._id), role: user.role });
   attachAuthCookie(res, token);
   clearFailedAttempts(attemptKey);

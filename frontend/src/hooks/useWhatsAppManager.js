@@ -453,6 +453,7 @@ export function useWhatsAppManager() {
           ? await login({
             mobileNumber: formToUse.mobileNumber.trim(),
             password: formToUse.password,
+            isAdmin: !!overrideForm,
           })
           : await register({
             name: formToUse.name.trim(),
