@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { accountTone } from "../utils/tones";
 import { formatDate } from "../utils/formatters";
 
@@ -246,8 +246,13 @@ function SessionsPage({
               ) : (
                 <p className="empty w-full">QR not available yet.</p>
               )}
-              <button type="button" className="btn-dark" onClick={refreshQrPreview}>
-                Refresh QR
+              <button
+                type="button"
+                className="btn-dark"
+                onClick={refreshQrPreview}
+                disabled={busy === "refresh-qr"}
+              >
+                {busy === "refresh-qr" ? "Refreshing..." : "Refresh QR"}
               </button>
             </div>
           </div>

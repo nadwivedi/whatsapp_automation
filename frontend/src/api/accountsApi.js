@@ -26,8 +26,9 @@ export function updateAccountDailyLimit(token, accountId, dailyLimit) {
   });
 }
 
-export function getAccountQr(token, accountId) {
-  return apiRequest(`/accounts/${accountId}/qr`, { token });
+export function getAccountQr(token, accountId, force = false) {
+  const query = force ? "?force=true" : "";
+  return apiRequest(`/accounts/${accountId}/qr${query}`, { token });
 }
 
 export function listAccountGroups(token, accountId) {

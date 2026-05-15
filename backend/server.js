@@ -77,3 +77,27 @@ startServer().catch((error) => {
   console.error("Failed to start backend:", error);
   process.exit(1);
 });
+
+// Handle Puppeteer/WhatsApp-Web.js specific unhandled rejections that sometimes occur during shutdown/restart
+process.on("unhandledRejection", (reason) => {
+  const msg = String(reason?.message || reason || "");
+  if (msg.includes("Target closed") || msg.includes("Session closed") || msg.includes("Execution context was destroyed")) {
+    // eslint-disable-next-line no-console
+    console.warn("[WHATSAPP] Handled background TargetCloseError:", msg);
+    return;
+  }
+  // eslint-disable-next-line no-console
+  console.error("Unhandled Rejection at:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  const msg = String(error?.message || error || "");
+  if (msg.includes("Target closed") || msg.includes("Session closed")) {
+    // eslint-disable-next-line no-console
+    console.warn("[WHATSAPP] Handled background UncaughtException:", msg);
+    return;
+  }
+  // eslint-disable-next-line no-console
+  console.error("Uncaught Exception:", error);
+  // Optional: process.exit(1) if it's a critical error
+});

@@ -346,8 +346,14 @@ class WhatsappSessionManager {
 
     const client = this.clients.get(mapKey);
     if (client) {
-      await client.destroy();
-      this.clients.delete(mapKey);
+      try {
+        await client.destroy();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[WHATSAPP] TargetCloseError ignored during destroy for ${accountId}:`, err.message);
+      } finally {
+        this.clients.delete(mapKey);
+      }
     }
     this.clientActivities.delete(mapKey);
     await this.updateAccount(accountId, {
@@ -368,8 +374,14 @@ class WhatsappSessionManager {
     const client = this.clients.get(mapKey);
     if (client) {
       this.intentionalSleeps.add(mapKey);
-      await client.destroy();
-      this.clients.delete(mapKey);
+      try {
+        await client.destroy();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[WHATSAPP] TargetCloseError ignored during sleep for ${accountId}:`, err.message);
+      } finally {
+        this.clients.delete(mapKey);
+      }
     }
     this.clientActivities.delete(mapKey);
     // DO NOT update database status. Leave it as "authenticated" for UI.

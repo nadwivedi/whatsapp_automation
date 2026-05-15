@@ -202,8 +202,15 @@ async function getAccountQr(req, res) {
     return res.status(404).json({ message: "Account not found." });
   }
 
+  const force = req.query.force === "true";
   const hasLiveClient = whatsappSessionManager.hasClient(account._id);
+
+  if (force && hasLiveClient) {
+    await whatsappSessionManager.stopSession(account._id);
+  }
+
   const shouldRestartForQr =
+    force ||
     ["new", "disconnected", "auth_failure"].includes(account.status) ||
     (!hasLiveClient && !account.qrCodeDataUrl && account.status !== "authenticated");
 

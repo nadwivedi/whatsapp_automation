@@ -593,9 +593,12 @@ export function useWhatsAppManager() {
   }
 
   async function showQr(account) {
-    setBusy(`qr-${account._id}`);
+    const accountId = account._id;
+    setBusy(`qr-${accountId}`);
     try {
-      const payload = await getAccountQr(token, account._id);
+      const payload = await getAccountQr(token, accountId);
+      // Only set if we haven't switched to another account or closed the preview in the meantime
+      // (Though showQr usually implies opening it, if we closed it we might not want it to pop back)
       setQrPreview({ ...payload, accountName: account.name });
     } catch (error) {
       setNotice({ type: "error", text: error.message });
@@ -606,11 +609,19 @@ export function useWhatsAppManager() {
 
   async function refreshQrPreview() {
     if (!qrPreview?.accountId) return;
+    const accountId = qrPreview.accountId;
+    setBusy("refresh-qr");
     try {
-      const qr = await getAccountQr(token, qrPreview.accountId);
-      setQrPreview((prev) => ({ ...prev, ...qr }));
+      const qr = await getAccountQr(token, accountId, true);
+      setQrPreview((prev) => {
+        // If the user closed the preview while we were fetching, don't reopen it
+        if (!prev || prev.accountId !== accountId) return prev;
+        return { ...prev, ...qr };
+      });
     } catch (error) {
       setNotice({ type: "error", text: error.message });
+    } finally {
+      setBusy("");
     }
   }
 
