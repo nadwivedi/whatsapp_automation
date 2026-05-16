@@ -447,6 +447,8 @@ class CampaignQueue {
         console.log(`[QUEUE] Reset ${retryResult.modifiedCount} transiently failed messages for retry.`);
       }
 
+      const contactCache = new Map();
+
       const activeCampaigns = await Campaign.find({
         status: { $in: ["queued", "running"] },
       }).sort({ createdAt: 1 }).limit(5);
