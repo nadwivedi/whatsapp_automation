@@ -180,6 +180,50 @@ class CampaignQueue {
     });
   }
 
+  async cleanupIdleSessions() {
+    const activeAccountIds = Array.from(whatsappSessionManager.clients.keys());
+    if (activeAccountIds.length === 0) return;
+
+    for (const accountId of activeAccountIds) {
+      const account = await WaAccount.findById(accountId);
+      if (!account) continue;
+
+      // Don't cleanup if user is currently authenticating/scanning
+      if (["initializing", "qr_ready"].includes(account.status)) {
+        continue;
+      }
+
+      // 1. Check if limit reached
+      const ownerSettings = await this.getOwnerSettings(account.owner);
+      const antiBot = ownerSettings;
+      const checkDailyCap = getWarmUpDailyLimit(account,
+        (Number.isFinite(Number(account.dailyLimit)) && account.dailyLimit > 0
+          ? Math.floor(account.dailyLimit)
+          : ownerSettings.perMobileDailyLimit),
+        antiBot);
+      const checkHourlyCap = ownerSettings.perMobileHourlyLimit;
+
+      if (account.sentToday >= checkDailyCap || account.sentThisHour >= checkHourlyCap) {
+        console.log(`[QUEUE] Account ${account.phoneNumber || account._id} has reached its limit. Destroying session in 2s...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await whatsappSessionManager.sleepSession(accountId).catch(() => { });
+        continue;
+      }
+
+      // 2. Is there ANY pending message for this account in ANY running/queued campaign?
+      const hasWork = await CampaignMessage.exists({
+        account: accountId,
+        status: "pending",
+      });
+
+      if (!hasWork) {
+        console.log(`[QUEUE] Account ${account.phoneNumber || account._id} has no more work. Destroying session in 2s...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        await whatsappSessionManager.sleepSession(accountId).catch(() => { });
+      }
+    }
+  }
+
   resetCampaignDailyWindowIfNeeded(campaign) {
     const now = Date.now();
     const dayStart = campaign.dayWindowStart ? new Date(campaign.dayWindowStart).getTime() : 0;
@@ -384,6 +428,7 @@ class CampaignQueue {
       }).sort({ createdAt: 1 });
 
       if (!campaign) {
+        await this.cleanupIdleSessions();
         return;
       }
 
@@ -669,6 +714,32 @@ class CampaignQueue {
         ).exec().catch(err => console.error("Error updating messagesSent:", err));
 
         await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save(), contactUpdate]);
+
+        // ── Immediate Cleanup ──
+        // Recalculate caps to check if we just hit them
+        const checkDailyCap = getWarmUpDailyLimit(selectedAccount,
+          (Number.isFinite(Number(selectedAccount.dailyLimit)) && selectedAccount.dailyLimit > 0
+            ? Math.floor(selectedAccount.dailyLimit)
+            : ownerSettings.perMobileDailyLimit),
+          antiBot);
+        const checkHourlyCap = ownerSettings.perMobileHourlyLimit;
+
+        if (selectedAccount.sentToday >= checkDailyCap || selectedAccount.sentThisHour >= checkHourlyCap) {
+          console.log(`[QUEUE] Account ${selectedAccount.phoneNumber || selectedAccount._id} reached limit after sending. Destroying session in 2s...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await whatsappSessionManager.sleepSession(selectedAccount._id).catch(() => { });
+        } else {
+          // Check if this specific account has any more work left
+          const hasMoreWork = await CampaignMessage.exists({
+            account: selectedAccount._id,
+            status: "pending",
+          });
+          if (!hasMoreWork) {
+            console.log(`[QUEUE] Account ${selectedAccount.phoneNumber || selectedAccount._id} finished all work. Destroying session in 2s...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await whatsappSessionManager.sleepSession(selectedAccount._id).catch(() => { });
+          }
+        }
       } catch (error) {
         selectedMessage.status = "failed";
         selectedMessage.senderMobileNumber = selectedAccount.phoneNumber || null;
@@ -686,6 +757,7 @@ class CampaignQueue {
       await this.finishCampaignIfDone(campaign);
     } finally {
       this.isTickRunning = false;
+      await this.cleanupIdleSessions().catch(() => { });
     }
   }
 }

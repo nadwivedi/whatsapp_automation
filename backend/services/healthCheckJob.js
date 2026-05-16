@@ -90,9 +90,7 @@ function initHealthCheckJob() {
   // IST 3:00 AM is UTC 21:30 (9:30 PM previous day)
   // Cron format: minute hour day month day-of-week
   // "30 21 * * *" runs at 21:30 UTC
-
-  runHealthCheck()
-
+  // runHealthCheck() - Removed to prevent run on startup
   cron.schedule("30 21 * * *", () => {
     runHealthCheck().catch(err => console.error("[HEALTH-CHECK] Fatal error in job:", err));
   }, {

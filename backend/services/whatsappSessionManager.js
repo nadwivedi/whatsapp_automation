@@ -3,6 +3,7 @@ const fs = require("fs");
 const QRCode = require("qrcode");
 const { Client, LocalAuth, MessageMedia } = require("whatsapp-web.js");
 const { WaAccount } = require("../models/WaAccount");
+const { UserSetting, DEFAULT_PER_MOBILE_DAILY_LIMIT, DEFAULT_PER_MOBILE_HOURLY_LIMIT } = require("../models/UserSetting");
 const replyInboxService = require("./replyInboxService");
 const { emitSessionStatus } = require("./replyEvents");
 const { normalizeNumber, toWhatsAppRecipient } = require("../utils/phone");
@@ -74,6 +75,7 @@ class WhatsappSessionManager {
         // Ignore destroy errors while resetting stale clients.
       } finally {
         this.clients.delete(mapKey);
+        console.log(`[WHATSAPP] Session DESTROYED (Reset) for account ${accountId}. Total active sessions: ${this.clients.size}`);
       }
     }
 
@@ -110,9 +112,27 @@ class WhatsappSessionManager {
   }
 
   async startSessionInternal(accountId, mapKey) {
-    const account = await WaAccount.findById(accountId);
+    let account = await WaAccount.findById(accountId);
     if (!account || !account.isActive) {
       throw new Error("Account not found or inactive.");
+    }
+
+    // ── Limit Check ──
+    WaAccount.resetDailyWindowIfNeeded(account);
+    WaAccount.resetHourlyWindowIfNeeded(account);
+    if (account.isModified("sentToday") || account.isModified("sentThisHour")) {
+      await account.save();
+    }
+
+    const settings = await UserSetting.getOrCreate(account.owner);
+    const dailyLimit = account.dailyLimit || settings.perMobileDailyLimit || DEFAULT_PER_MOBILE_DAILY_LIMIT;
+    const hourlyLimit = settings.perMobileHourlyLimit || DEFAULT_PER_MOBILE_HOURLY_LIMIT;
+
+    if (account.sentToday >= dailyLimit) {
+      throw new Error(`Daily limit reached (${account.sentToday}/${dailyLimit}). Session cannot start.`);
+    }
+    if (account.sentThisHour >= hourlyLimit) {
+      throw new Error(`Hourly limit reached (${account.sentThisHour}/${hourlyLimit}). Session cannot start.`);
     }
 
     if (this.clients.has(mapKey)) {
@@ -190,6 +210,7 @@ class WhatsappSessionManager {
         qrCodeDataUrl: null,
         lastError: null,
       });
+      console.log(`[WHATSAPP] Session READY for account ${account._id}. Total active sessions: ${this.clients.size}`);
       emitSessionStatus(account.owner, account._id, "authenticated", { phoneNumber });
     });
 
@@ -207,6 +228,7 @@ class WhatsappSessionManager {
         return;
       }
       this.clients.delete(mapKey);
+      console.log(`[WHATSAPP] Session DISCONNECTED for account ${account._id}. Reason: ${reason}. Total active sessions: ${this.clients.size}`);
       await this.updateAccount(account._id, {
         status: "disconnected",
         qrCodeDataUrl: null,
@@ -253,6 +275,7 @@ class WhatsappSessionManager {
     });
 
     this.clients.set(mapKey, client);
+    console.log(`[WHATSAPP] Session OPENED for account ${account._id} (${account.name || account.phoneNumber}). Total active sessions: ${this.clients.size}`);
     await this.updateAccount(account._id, {
       status: "initializing",
       lastError: null,
@@ -314,6 +337,7 @@ class WhatsappSessionManager {
       });
     } catch (error) {
       this.clients.delete(mapKey);
+      console.log(`[WHATSAPP] Session FAILED during initialization for account ${account._id}. Total active sessions: ${this.clients.size}`);
       const errorMessage = this.isProfileLockedError(error)
         ? "Session is already open in another browser process. Stop that process and retry."
         : error.message;
@@ -353,6 +377,7 @@ class WhatsappSessionManager {
         console.warn(`[WHATSAPP] TargetCloseError ignored during destroy for ${accountId}:`, err.message);
       } finally {
         this.clients.delete(mapKey);
+        console.log(`[WHATSAPP] Session DESTROYED (Stop) for account ${accountId}. Total active sessions: ${this.clients.size}`);
       }
     }
     this.clientActivities.delete(mapKey);
@@ -381,6 +406,7 @@ class WhatsappSessionManager {
         console.warn(`[WHATSAPP] TargetCloseError ignored during sleep for ${accountId}:`, err.message);
       } finally {
         this.clients.delete(mapKey);
+        console.log(`[WHATSAPP] Session DESTROYED (Sleep) for account ${accountId}. Total active sessions: ${this.clients.size}`);
       }
     }
     this.clientActivities.delete(mapKey);
