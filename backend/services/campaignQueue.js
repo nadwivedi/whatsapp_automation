@@ -762,9 +762,9 @@ class CampaignQueue {
         const checkDailyCap = getWarmUpDailyLimit(selectedAccount,
           (Number.isFinite(Number(selectedAccount.dailyLimit)) && selectedAccount.dailyLimit > 0
             ? Math.floor(selectedAccount.dailyLimit)
-            : ownerSettings.perMobileDailyLimit),
+            : antiBot.perMobileDailyLimit),
           antiBot);
-        const checkHourlyCap = ownerSettings.perMobileHourlyLimit;
+        const checkHourlyCap = antiBot.perMobileHourlyLimit;
 
         if (selectedAccount.sentToday >= checkDailyCap || selectedAccount.sentThisHour >= checkHourlyCap) {
           console.log(`[QUEUE] Account ${selectedAccount.phoneNumber || selectedAccount._id} reached limit after sending. Destroying session in 2s...`);
