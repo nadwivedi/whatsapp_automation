@@ -459,6 +459,7 @@ class CampaignQueue {
       let selectedCampaignDoc = null;
       let selectedMessage = null;
       let selectedAccount = null;
+      let selectedAntiBot = null;
       let globalLastBlockReason = "No eligible campaign can proceed right now.";
 
       for (const campaign of activeCampaigns) {
@@ -628,6 +629,7 @@ class CampaignQueue {
 
           selectedMessage = candidate;
           selectedAccount = account;
+          selectedAntiBot = antiBot;
           break; // Found message for THIS campaign
         }
 
@@ -647,6 +649,7 @@ class CampaignQueue {
       }
 
       const campaign = selectedCampaignDoc;
+      const antiBot = selectedAntiBot;
 
       try {
         // ── Anti-Bot: Read receipts (mark chat as read before sending) ──
