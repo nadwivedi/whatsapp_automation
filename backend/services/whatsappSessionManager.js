@@ -15,6 +15,7 @@ class WhatsappSessionManager {
     this.startingSessions = new Map();
     this.clientActivities = new Map();
     this.intentionalSleeps = new Set();
+    this.qrTimers = new Map(); // accountId → timeout handle for QR expiry
     this.idleTimer = setInterval(() => this.checkIdleSessions(), 60000);
   }
 
@@ -195,7 +196,10 @@ class WhatsappSessionManager {
     });
 
     client.on("qr", async (qr) => {
-      console.log(`[WHATSAPP] QR received for account ${account._id}.`);
+      // Only log the first QR per session — suppress repeat refresh noise
+      if (!this.qrTimers.has(String(account._id))) {
+        console.log(`[WHATSAPP] QR ready for account ${account._id}. Scan within 5 minutes or session will close.`);
+      }
       try {
         const qrCodeDataUrl = await QRCode.toDataURL(qr, { width: 300 });
         await this.updateAccount(account._id, {
@@ -211,10 +215,40 @@ class WhatsappSessionManager {
           lastError: `QR generation failed: ${error.message}`,
         });
         emitSessionStatus(account.owner, account._id, "auth_failure", { lastError: `QR generation failed: ${error.message}` });
+        return;
       }
+
+      // Start/reset 5-minute QR expiry timer
+      const mapKey = String(account._id);
+      if (this.qrTimers.has(mapKey)) {
+        clearTimeout(this.qrTimers.get(mapKey));
+      }
+      const timer = setTimeout(async () => {
+        this.qrTimers.delete(mapKey);
+        if (!this.clients.has(mapKey)) return; // already closed
+        const currentAccount = await WaAccount.findById(account._id);
+        if (!currentAccount || currentAccount.status !== "qr_ready") return; // already authenticated
+        console.warn(`[WHATSAPP] QR expired for account ${account._id}. Closing session — needs manual re-login.`);
+        await this.updateAccount(account._id, {
+          status: "disconnected",
+          qrCodeDataUrl: null,
+          lastError: "QR code expired without being scanned. Please open Sessions and scan QR to reconnect.",
+        });
+        emitSessionStatus(account.owner, account._id, "disconnected", {
+          lastError: "QR code expired. Please scan again.",
+        });
+        await this.sleepSession(account._id).catch(() => {});
+      }, 5 * 60 * 1000); // 5 minutes
+      this.qrTimers.set(mapKey, timer);
     });
 
     client.on("authenticated", async () => {
+      // Clear QR expiry timer on successful scan
+      const mapKey = String(account._id);
+      if (this.qrTimers.has(mapKey)) {
+        clearTimeout(this.qrTimers.get(mapKey));
+        this.qrTimers.delete(mapKey);
+      }
       this.recordActivity(account._id);
       console.log(`[WHATSAPP:${account._id}] ✓ Authenticated.`);
       await this.updateAccount(account._id, {
