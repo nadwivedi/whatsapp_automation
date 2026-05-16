@@ -417,6 +417,10 @@ async function updateCampaign(req, res) {
     req.body?.perRecipientMessageLimit == null || req.body?.perRecipientMessageLimit === ""
       ? null
       : Number(req.body.perRecipientMessageLimit);
+  const maxMessages =
+    req.body?.maxMessages == null || req.body?.maxMessages === ""
+      ? null
+      : Number(req.body.maxMessages);
   const dateFrom = req.body?.dateFrom ? String(req.body.dateFrom) : null;
   const dateTo = req.body?.dateTo ? String(req.body.dateTo) : null;
   const perNumberDailySafeguard =
@@ -443,6 +447,12 @@ async function updateCampaign(req, res) {
     return res.status(400).json({
       message: `perRecipientMessageLimit must be between 1 and ${MAX_PER_RECIPIENT_MESSAGE_LIMIT}.`,
     });
+  }
+  if (
+    maxMessages != null &&
+    (!Number.isFinite(maxMessages) || maxMessages < 1 || maxMessages > 5000)
+  ) {
+    return res.status(400).json({ message: "maxMessages must be between 1 and 5000." });
   }
   if (dateFrom && !/^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
     return res.status(400).json({ message: "dateFrom must be in YYYY-MM-DD format." });
@@ -482,9 +492,13 @@ async function updateCampaign(req, res) {
     nextPerRecipientMessageLimit !==
     (campaign.perRecipientMessageLimit || DEFAULT_PER_RECIPIENT_MESSAGE_LIMIT);
 
+  const nextMaxMessages = maxMessages == null ? campaign.maxMessages : Math.floor(maxMessages);
+  const maxMessagesChanged = nextMaxMessages !== campaign.maxMessages;
+
   campaign.title = title;
   campaign.messageBody = messageBody;
   campaign.perRecipientMessageLimit = nextPerRecipientMessageLimit;
+  campaign.maxMessages = nextMaxMessages;
   campaign.dateFrom = dateFrom;
   campaign.dateTo = dateTo;
   campaign.perNumberDailySafeguard = perNumberDailySafeguard || 20;
@@ -508,7 +522,7 @@ async function updateCampaign(req, res) {
       await rebalancePendingMessagesForAccounts(campaign, req.user._id);
     }
   }
-  if (recipientLimitChanged) {
+  if (recipientLimitChanged || maxMessagesChanged) {
     await rebalancePendingMessagesForRecipientLimit(campaign, req.user._id);
   }
 

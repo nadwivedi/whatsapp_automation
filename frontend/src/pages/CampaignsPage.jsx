@@ -39,6 +39,7 @@ function CampaignsPage({
     title: "",
     messageBody: "",
     perRecipientMessageLimit: "1",
+    maxMessages: "",
     dateFrom: "",
     dateTo: "",
   });
@@ -152,6 +153,7 @@ function CampaignsPage({
       title: campaign.title || "",
       messageBody: campaign.messageBody || "",
       perRecipientMessageLimit: String(campaign.perRecipientMessageLimit || 1),
+      maxMessages: String(campaign.maxMessages || ""),
       dateFrom: campaign.dateFrom || "",
       dateTo: campaign.dateTo || "",
     });
@@ -168,6 +170,7 @@ function CampaignsPage({
       title: editForm.title.trim(),
       messageBody: editForm.messageBody,
       perRecipientMessageLimit: Number(editForm.perRecipientMessageLimit || 1),
+      maxMessages: Number(editForm.maxMessages || 0),
       dateFrom: editForm.dateFrom || undefined,
       dateTo: editForm.dateTo || undefined,
       accountIds: editAccountIds,
@@ -624,18 +627,55 @@ function CampaignsPage({
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <input
-                  className="input-dark"
-                  type="number"
-                  min="1"
-                  max="20"
-                  placeholder="Messages per person"
-                  value={editForm.perRecipientMessageLimit}
-                  onChange={(e) =>
-                    setEditForm((p) => ({ ...p, perRecipientMessageLimit: e.target.value }))
-                  }
-                  required
-                />
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-slate-500">Total messages to send</p>
+                  <input
+                    className="input-dark"
+                    type="number"
+                    min="1"
+                    max="5000"
+                    placeholder="Total messages to send"
+                    value={editForm.maxMessages}
+                    onChange={(e) => setEditForm((p) => ({ ...p, maxMessages: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-slate-500">Messages per person</p>
+                  <input
+                    className="input-dark"
+                    type="number"
+                    min="1"
+                    max="20"
+                    placeholder="Messages per person"
+                    value={editForm.perRecipientMessageLimit}
+                    onChange={(e) =>
+                      setEditForm((p) => ({ ...p, perRecipientMessageLimit: e.target.value }))
+                    }
+                    required
+                  />
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/90 p-3 space-y-2">
+                <p className="text-sm font-semibold text-slate-800">
+                  Queued Contacts <span className="text-xs font-normal text-slate-500">({editingCampaign.recipientPool?.length || 0} total)</span>
+                </p>
+                <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+                  {(editingCampaign.recipientPool || []).length > 0 ? (
+                    editingCampaign.recipientPool.map((number, idx) => {
+                      const matchedContact = contacts.find(c => c.mobile === number);
+                      return (
+                        <div key={idx} className="flex items-center gap-2 text-xs text-slate-600 bg-white px-2 py-1 rounded border border-slate-100">
+                          <span className="w-4 text-[10px] text-slate-400 font-mono">{idx + 1}.</span>
+                          <span className="font-medium text-slate-700">{matchedContact ? matchedContact.name : number}</span>
+                          {matchedContact && <span className="text-[10px] text-slate-400 ml-auto">{number}</span>}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No recipients in pool.</p>
+                  )}
+                </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="grid gap-3 sm:grid-cols-2">
