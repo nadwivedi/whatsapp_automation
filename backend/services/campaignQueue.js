@@ -433,7 +433,7 @@ class CampaignQueue {
         {
           status: "failed",
           updatedAt: { $gte: startOfDay },
-          error: { $regex: /not initialized|paused|State: null|State: undefined|Target closed|Session closed|Protocol error/i }
+          error: { $regex: /not initialized|paused|State: null|State: undefined|Target closed|Session closed|Protocol error|Protocol error \(Page.printToPDF\)/i }
         },
         {
           $set: {
@@ -447,197 +447,206 @@ class CampaignQueue {
         console.log(`[QUEUE] Reset ${retryResult.modifiedCount} transiently failed messages for retry.`);
       }
 
-      const campaign = await Campaign.findOne({
+      const activeCampaigns = await Campaign.find({
         status: { $in: ["queued", "running"] },
-      }).sort({ createdAt: 1 });
+      }).sort({ createdAt: 1 }).limit(5);
 
-      if (!campaign) {
+      if (!activeCampaigns.length) {
         await this.cleanupIdleSessions();
         return;
       }
 
-      if (campaign.status === "queued") {
-        campaign.status = "running";
-        campaign.startedAt = new Date();
-        await campaign.save();
-      }
+      let selectedCampaignDoc = null;
+      let selectedMessage = null;
+      let selectedAccount = null;
+      let globalLastBlockReason = "No eligible campaign can proceed right now.";
 
-      const today = new Date().toISOString().slice(0, 10);
-      if (campaign.dateFrom && today < campaign.dateFrom) {
-        campaign.lastError = `Campaign is scheduled from ${campaign.dateFrom}.`;
-        await campaign.save();
-        return;
-      }
-      if (campaign.dateTo && today > campaign.dateTo) {
-        const pendingCount = await CampaignMessage.countDocuments({
+      for (const campaign of activeCampaigns) {
+        if (campaign.status === "queued") {
+          campaign.status = "running";
+          campaign.startedAt = new Date();
+          await campaign.save();
+        }
+
+        const today = new Date().toISOString().slice(0, 10);
+        if (campaign.dateFrom && today < campaign.dateFrom) {
+          campaign.lastError = `Campaign is scheduled from ${campaign.dateFrom}.`;
+          await campaign.save();
+          continue;
+        }
+        if (campaign.dateTo && today > campaign.dateTo) {
+          const pendingCount = await CampaignMessage.countDocuments({
+            owner: campaign.owner,
+            campaign: campaign._id,
+            status: "pending",
+          });
+          campaign.failedCount += (campaign.failedCount || 0) + pendingCount;
+          campaign.queuedCount = 0;
+          campaign.status = campaign.sentCount > 0 ? "completed" : "failed";
+          campaign.completedAt = new Date();
+          campaign.lastError = `Campaign window ended on ${campaign.dateTo}.`;
+          await Promise.all([
+            campaign.save(),
+            CampaignMessage.updateMany(
+              { owner: campaign.owner, campaign: campaign._id, status: "pending" },
+              { $set: { status: "failed", error: `Campaign window ended on ${campaign.dateTo}.` } },
+            ),
+          ]);
+          continue;
+        }
+
+        this.resetCampaignDailyWindowIfNeeded(campaign);
+        const ownerSettings = await this.getOwnerSettings(campaign.owner);
+        const antiBot = ownerSettings;
+
+        // ── Business Hours check ──
+        if (!isWithinBusinessHours(antiBot)) {
+          const start = antiBot.businessHoursStart ?? 9;
+          const end = antiBot.businessHoursEnd ?? 21;
+          campaign.lastError = `Outside business hours (${start}:00–${end}:00). Will resume during business hours.`;
+          await campaign.save();
+          continue;
+        }
+
+        let messages = await CampaignMessage.find({
           owner: campaign.owner,
           campaign: campaign._id,
           status: "pending",
-        });
-        campaign.failedCount += pendingCount;
-        campaign.queuedCount = 0;
-        campaign.status = campaign.sentCount > 0 ? "completed" : "failed";
-        campaign.completedAt = new Date();
-        campaign.lastError = `Campaign window ended on ${campaign.dateTo}.`;
-        await Promise.all([
-          campaign.save(),
-          CampaignMessage.updateMany(
-            { owner: campaign.owner, campaign: campaign._id, status: "pending" },
-            { $set: { status: "failed", error: `Campaign window ended on ${campaign.dateTo}.` } },
-          ),
-        ]);
-        return;
-      }
+        })
+          .sort({ createdAt: 1 })
+          .limit(50);
 
-      this.resetCampaignDailyWindowIfNeeded(campaign);
-      const ownerSettings = await this.getOwnerSettings(campaign.owner);
-      const antiBot = ownerSettings;
-
-      // ── Business Hours check ──
-      if (!isWithinBusinessHours(antiBot)) {
-        const start = antiBot.businessHoursStart ?? 9;
-        const end = antiBot.businessHoursEnd ?? 21;
-        campaign.lastError = `Outside business hours (${start}:00–${end}:00). Will resume during business hours.`;
-        await campaign.save();
-        return;
-      }
-
-      let messages = await CampaignMessage.find({
-        owner: campaign.owner,
-        campaign: campaign._id,
-        status: "pending",
-      })
-        .sort({ createdAt: 1 })
-        .limit(50);
-
-      if (!messages.length) {
-        await this.finishCampaignIfDone(campaign);
-        return;
-      }
-
-      // ── Anti-Bot: Shuffle pending messages ──
-      if (antiBot.antiBotEnabled && antiBot.shuffleRecipients && messages.length > 1) {
-        messages = shuffleArray(messages);
-      }
-
-      const accountCache = new Map();
-      const contactCache = new Map();
-      let selectedMessage = null;
-      let selectedAccount = null;
-      let lastBlockReason = "No available account can send right now.";
-
-      for (const candidate of messages) {
-        const key = String(candidate.account);
-        let account = accountCache.get(key);
-        if (account === undefined) {
-          account = await WaAccount.findById(candidate.account);
-          accountCache.set(key, account || null);
-        }
-
-        if (!account) {
-          candidate.status = "failed";
-          candidate.tryCount += 1;
-          candidate.error = "Account not found.";
-          campaign.failedCount += 1;
-          campaign.queuedCount -= 1;
-          campaign.lastError = "One of the selected accounts was removed.";
-          await Promise.all([candidate.save(), campaign.save()]);
+        if (!messages.length) {
           await this.finishCampaignIfDone(campaign);
-          return;
-        }
-
-        if (String(account.owner) !== String(campaign.owner) || !account.isActive) {
-          candidate.status = "failed";
-          candidate.tryCount += 1;
-          candidate.error = "Campaign ownership mismatch.";
-          campaign.failedCount += 1;
-          campaign.queuedCount -= 1;
-          campaign.lastError = "One of the selected accounts is invalid.";
-          await Promise.all([candidate.save(), campaign.save()]);
-          await this.finishCampaignIfDone(campaign);
-          return;
-        }
-
-        WaAccount.resetDailyWindowIfNeeded(account);
-        WaAccount.resetHourlyWindowIfNeeded(account);
-
-        const accountDailyLimit = Number(account.dailyLimit);
-        const rawDailyCap =
-          Number.isFinite(accountDailyLimit) && accountDailyLimit > 0
-            ? Math.floor(accountDailyLimit)
-            : ownerSettings.perMobileDailyLimit;
-
-        // ── Warm-Up: reduce daily cap for new accounts ──
-        const effectiveDailyCap = getWarmUpDailyLimit(account, rawDailyCap, antiBot);
-        const effectiveHourlyCap = ownerSettings.perMobileHourlyLimit;
-
-        if (account.sentToday >= effectiveDailyCap) {
-          await account.save();
-          if (whatsappSessionManager.hasClient(account._id)) {
-            console.log(`[QUEUE] Account ${account.phoneNumber} reached daily limit (${effectiveDailyCap}). Sleeping session.`);
-            whatsappSessionManager.sleepSession(account._id).catch(() => {});
-          }
-          const isWarmingUp = antiBot.antiBotEnabled && antiBot.warmUpEnabled && effectiveDailyCap < rawDailyCap;
-          lastBlockReason = isWarmingUp
-            ? `Warm-up limit reached (${effectiveDailyCap}/${rawDailyCap} daily) for ${account.phoneNumber || account.name || "account"}. Limit increases daily.`
-            : `Daily safeguard reached (${effectiveDailyCap}/24h) for one or more selected sessions.`;
           continue;
         }
-        if (account.sentThisHour >= effectiveHourlyCap) {
-          await account.save();
-          if (whatsappSessionManager.hasClient(account._id)) {
-            console.log(`[QUEUE] Account ${account.phoneNumber} reached hourly limit (${effectiveHourlyCap}). Sleeping session.`);
-            whatsappSessionManager.sleepSession(account._id).catch(() => {});
-          }
-          lastBlockReason = `Hourly safeguard reached (${effectiveHourlyCap}/hour) for one or more selected sessions.`;
-          continue;
+
+        // ── Anti-Bot: Shuffle pending messages ──
+        if (antiBot.antiBotEnabled && antiBot.shuffleRecipients && messages.length > 1) {
+          messages = shuffleArray(messages);
         }
-        if (!whatsappSessionManager.hasClient(account._id)) {
-          // If the server restarted, DB might say "authenticated" but memory has no client. Force start on demand.
-          try {
-            account = await whatsappSessionManager.startSession(account._id);
-            accountCache.set(String(account._id), account);
-          } catch (err) {
-            lastBlockReason = "Connecting account failed: " + err.message;
+
+        const accountCache = new Map();
+        let lastBlockReason = "No available account can send right now.";
+
+        for (const candidate of messages) {
+          const key = String(candidate.account);
+          let account = accountCache.get(key);
+          if (account === undefined) {
+            account = await WaAccount.findById(candidate.account);
+            accountCache.set(key, account || null);
+          }
+
+          if (!account) {
+            candidate.status = "failed";
+            candidate.tryCount += 1;
+            candidate.error = "Account not found.";
+            campaign.failedCount += 1;
+            campaign.queuedCount -= 1;
+            campaign.lastError = "One of the selected accounts was removed.";
+            await Promise.all([candidate.save(), campaign.save()]);
             continue;
           }
-          
+
+          if (String(account.owner) !== String(campaign.owner) || !account.isActive) {
+            candidate.status = "failed";
+            candidate.tryCount += 1;
+            candidate.error = "Campaign ownership mismatch.";
+            campaign.failedCount += 1;
+            campaign.queuedCount -= 1;
+            campaign.lastError = "One of the selected accounts is invalid.";
+            await Promise.all([candidate.save(), campaign.save()]);
+            continue;
+          }
+
+          WaAccount.resetDailyWindowIfNeeded(account);
+          WaAccount.resetHourlyWindowIfNeeded(account);
+
+          const accountDailyLimit = Number(account.dailyLimit);
+          const rawDailyCap =
+            Number.isFinite(accountDailyLimit) && accountDailyLimit > 0
+              ? Math.floor(accountDailyLimit)
+              : ownerSettings.perMobileDailyLimit;
+
+          const effectiveDailyCap = getWarmUpDailyLimit(account, rawDailyCap, antiBot);
+          const effectiveHourlyCap = ownerSettings.perMobileHourlyLimit;
+
+          if (account.sentToday >= effectiveDailyCap) {
+            await account.save();
+            if (whatsappSessionManager.hasClient(account._id)) {
+              console.log(`[QUEUE] Account ${account.phoneNumber} reached daily limit (${effectiveDailyCap}). Sleeping session.`);
+              whatsappSessionManager.sleepSession(account._id).catch(() => {});
+            }
+            const isWarmingUp = antiBot.antiBotEnabled && antiBot.warmUpEnabled && effectiveDailyCap < rawDailyCap;
+            lastBlockReason = isWarmingUp
+              ? `Warm-up limit reached (${effectiveDailyCap}/${rawDailyCap} daily) for ${account.phoneNumber || account.name || "account"}. Limit increases daily.`
+              : `Daily safeguard reached (${effectiveDailyCap}/24h) for one or more selected sessions.`;
+            continue;
+          }
+          if (account.sentThisHour >= effectiveHourlyCap) {
+            await account.save();
+            if (whatsappSessionManager.hasClient(account._id)) {
+              console.log(`[QUEUE] Account ${account.phoneNumber} reached hourly limit (${effectiveHourlyCap}). Sleeping session.`);
+              whatsappSessionManager.sleepSession(account._id).catch(() => {});
+            }
+            lastBlockReason = `Hourly safeguard reached (${effectiveHourlyCap}/hour) for one or more selected sessions.`;
+            continue;
+          }
           if (!whatsappSessionManager.hasClient(account._id)) {
-            lastBlockReason = "One or more selected sessions failed to start.";
+            try {
+              account = await whatsappSessionManager.startSession(account._id);
+              accountCache.set(String(account._id), account);
+            } catch (err) {
+              lastBlockReason = "Connecting account failed: " + err.message;
+              continue;
+            }
+            
+            if (!whatsappSessionManager.hasClient(account._id)) {
+              lastBlockReason = "One or more selected sessions failed to start.";
+              continue;
+            }
+          }
+
+          if (account.status !== "authenticated") {
+            lastBlockReason = "One or more selected sessions are not authenticated (Status: " + account.status + ").";
+            if (account.status !== "initializing" && account.status !== "qr_ready") {
+              console.log(`[QUEUE] Account ${account.phoneNumber || account._id} skipped: status is ${account.status}`);
+            }
             continue;
           }
-        }
 
-        if (account.status !== "authenticated") {
-          lastBlockReason = "One or more selected sessions are not authenticated (Status: " + account.status + ").";
-          // Only log if it's NOT initializing, to avoid "initializing frequently" spam
-          if (account.status !== "initializing" && account.status !== "qr_ready") {
-            console.log(`[QUEUE] Account ${account.phoneNumber || account._id} skipped: status is ${account.status}`);
+          if (this.isAccountThrottled(account._id)) {
+            const cooldown = this.accountCooldowns.get(String(account._id));
+            const remainingSec = cooldown
+              ? Math.ceil((cooldown.nextAllowedAt - Date.now()) / 1000)
+              : 0;
+            lastBlockReason = antiBot.antiBotEnabled
+              ? `Anti-bot: account ${account.phoneNumber || account.name || ""} cooling down (${remainingSec}s). Other accounts may still send.`
+              : "Selected sessions are cooling down. Retrying shortly.";
+            continue;
           }
-          continue;
+
+          selectedMessage = candidate;
+          selectedAccount = account;
+          break; // Found message for THIS campaign
         }
 
-        if (this.isAccountThrottled(account._id)) {
-          const cooldown = this.accountCooldowns.get(String(account._id));
-          const remainingSec = cooldown
-            ? Math.ceil((cooldown.nextAllowedAt - Date.now()) / 1000)
-            : 0;
-          lastBlockReason = antiBot.antiBotEnabled
-            ? `Anti-bot: account ${account.phoneNumber || account.name || ""} cooling down (${remainingSec}s). Other accounts may still send.`
-            : "Selected sessions are cooling down. Retrying shortly.";
-          continue;
+        if (selectedMessage && selectedAccount) {
+          selectedCampaignDoc = campaign;
+          break; // Found message to send! Exit campaign loop
+        } else {
+          campaign.lastError = lastBlockReason;
+          globalLastBlockReason = lastBlockReason;
+          await campaign.save();
+          // continue to next campaign
         }
-
-        selectedMessage = candidate;
-        selectedAccount = account;
-        break;
       }
 
-      if (!selectedMessage || !selectedAccount) {
-        campaign.lastError = lastBlockReason;
-        await campaign.save();
+      if (!selectedMessage || !selectedAccount || !selectedCampaignDoc) {
         return;
       }
+
+      const campaign = selectedCampaignDoc;
 
       try {
         // ── Anti-Bot: Read receipts (mark chat as read before sending) ──
@@ -769,17 +778,23 @@ class CampaignQueue {
           }
         }
       } catch (error) {
-        selectedMessage.status = "failed";
-        selectedMessage.senderMobileNumber = selectedAccount.phoneNumber || null;
-        selectedMessage.recipientMobileNumber =
-          selectedMessage.recipientMobileNumber || selectedMessage.recipient;
-        selectedMessage.tryCount += 1;
-        selectedMessage.error = error.message;
-        campaign.failedCount += 1;
-        campaign.queuedCount -= 1;
-        campaign.lastError = error.message;
-
-        await Promise.all([selectedMessage.save(), campaign.save()]);
+        console.error(`[QUEUE] Tick error:`, error);
+        if (selectedMessage) {
+          selectedMessage.status = "failed";
+          selectedMessage.senderMobileNumber = selectedAccount?.phoneNumber || null;
+          selectedMessage.recipientMobileNumber =
+            selectedMessage.recipientMobileNumber || selectedMessage.recipient;
+          selectedMessage.tryCount += 1;
+          selectedMessage.error = error.message;
+          await selectedMessage.save().catch(() => {});
+        }
+        
+        if (campaign) {
+          campaign.failedCount = (campaign.failedCount || 0) + (selectedMessage ? 1 : 0);
+          campaign.queuedCount = Math.max(0, (campaign.queuedCount || 0) - (selectedMessage ? 1 : 0));
+          campaign.lastError = error.message;
+          await campaign.save().catch(() => {});
+        }
       }
 
       await this.finishCampaignIfDone(campaign);

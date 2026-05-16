@@ -39,13 +39,28 @@ class WhatsappSessionManager {
 
   async checkIdleSessions() {
     const now = Date.now();
+    
+    // 1. Cleanup sessions with no activity (idle timeout)
     for (const [accountId, lastActive] of this.clientActivities.entries()) {
       if (now - lastActive > 3 * 60 * 1000) {
         try {
           await this.sleepSession(accountId);
-        } catch (_error) {
-          // Ignore
+        } catch (_error) { /* Ignore */ }
+      }
+    }
+
+    // 2. Cleanup ghost sessions (account deleted from DB but session still in memory)
+    const activeIds = Array.from(this.clients.keys());
+    for (const accountId of activeIds) {
+      try {
+        const exists = await WaAccount.exists({ _id: accountId });
+        if (!exists) {
+          console.log(`[WHATSAPP] Ghost session detected for ${accountId} (not in DB). Destroying...`);
+          await this.sleepSession(accountId).catch(() => {});
+          this.clientActivities.delete(String(accountId));
         }
+      } catch (err) {
+        console.error(`[WHATSAPP] Error checking ghost session ${accountId}:`, err.message);
       }
     }
   }
