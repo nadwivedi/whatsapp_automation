@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { Campaign } = require("../models/Campaign");
 const { CampaignMessage } = require("../models/CampaignMessage");
 const { WaAccount } = require("../models/WaAccount");
@@ -211,8 +212,9 @@ class CampaignQueue {
       }
 
       // 2. Is there ANY pending message for this account in ANY running/queued campaign?
+      // Use explicit ObjectId casting to ensure query matches
       const hasWork = await CampaignMessage.exists({
-        account: accountId,
+        account: new mongoose.Types.ObjectId(accountId),
         status: "pending",
       });
 
@@ -423,6 +425,28 @@ class CampaignQueue {
     this.isTickRunning = true;
 
     try {
+      // ── Auto-Retry: Reset transiently failed messages back to pending ──
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const retryResult = await CampaignMessage.updateMany(
+        {
+          status: "failed",
+          updatedAt: { $gte: startOfDay },
+          error: { $regex: /not initialized|paused|State: null|State: undefined|Target closed|Session closed|Protocol error/i }
+        },
+        {
+          $set: {
+            status: "pending",
+            error: null
+          },
+          $inc: { tryCount: -1 }
+        }
+      );
+      if (retryResult.modifiedCount > 0) {
+        console.log(`[QUEUE] Reset ${retryResult.modifiedCount} transiently failed messages for retry.`);
+      }
+
       const campaign = await Campaign.findOne({
         status: { $in: ["queued", "running"] },
       }).sort({ createdAt: 1 });
@@ -586,6 +610,10 @@ class CampaignQueue {
 
         if (account.status !== "authenticated") {
           lastBlockReason = "One or more selected sessions are not authenticated (Status: " + account.status + ").";
+          // Only log if it's NOT initializing, to avoid "initializing frequently" spam
+          if (account.status !== "initializing" && account.status !== "qr_ready") {
+            console.log(`[QUEUE] Account ${account.phoneNumber || account._id} skipped: status is ${account.status}`);
+          }
           continue;
         }
 
@@ -731,7 +759,7 @@ class CampaignQueue {
         } else {
           // Check if this specific account has any more work left
           const hasMoreWork = await CampaignMessage.exists({
-            account: selectedAccount._id,
+            account: new mongoose.Types.ObjectId(selectedAccount._id),
             status: "pending",
           });
           if (!hasMoreWork) {

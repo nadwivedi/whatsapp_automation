@@ -91,7 +91,11 @@ class WhatsappSessionManager {
   }
 
   async updateAccount(accountId, update) {
-    await WaAccount.findByIdAndUpdate(accountId, update, { returnDocument: "before" });
+    const acc = await WaAccount.findById(accountId);
+    if (acc) {
+      Object.assign(acc, update);
+      await acc.save();
+    }
   }
 
   async startSession(accountId) {
@@ -162,18 +166,21 @@ class WhatsappSessionManager {
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",
-          "--disable-blink-features=AutomationControlled",
-          "--disable-infobars",
           "--disable-dev-shm-usage",
+          "--disable-accelerated-2d-canvas",
           "--no-first-run",
-          "--no-default-browser-check",
-          "--disable-extensions",
-          `--window-size=${1280 + Math.floor(Math.random() * 200)},${800 + Math.floor(Math.random() * 200)}`,
+          "--disable-gpu",
+          "--no-zygote",
+          "--disable-features=site-per-process",
+          "--disable-web-security",
+          "--disable-blink-features=AutomationControlled",
         ],
       },
+      webVersionCache: { type: "none" },
     });
 
     client.on("qr", async (qr) => {
+      console.log(`[WHATSAPP] QR received for account ${account._id}.`);
       try {
         const qrCodeDataUrl = await QRCode.toDataURL(qr, { width: 300 });
         await this.updateAccount(account._id, {
@@ -183,6 +190,7 @@ class WhatsappSessionManager {
         });
         emitSessionStatus(account.owner, account._id, "qr_ready", { qrCodeDataUrl });
       } catch (error) {
+        console.error(`[WHATSAPP] QR generation error for ${account._id}:`, error.message);
         await this.updateAccount(account._id, {
           status: "auth_failure",
           lastError: `QR generation failed: ${error.message}`,
@@ -193,11 +201,13 @@ class WhatsappSessionManager {
 
     client.on("authenticated", async () => {
       this.recordActivity(account._id);
+      console.log(`[WHATSAPP:${account._id}] ✓ Authenticated.`);
       await this.updateAccount(account._id, {
-        status: "initializing",
+        status: "authenticated",
+        qrCodeDataUrl: null,
         lastError: null,
       });
-      emitSessionStatus(account.owner, account._id, "initializing");
+      emitSessionStatus(account.owner, account._id, "authenticated");
     });
 
     client.on("ready", async () => {
@@ -210,11 +220,13 @@ class WhatsappSessionManager {
         qrCodeDataUrl: null,
         lastError: null,
       });
+      console.log(`[WHATSAPP] Account ${account._id} marked as AUTHENTICATED in database.`);
       console.log(`[WHATSAPP] Session READY for account ${account._id}. Total active sessions: ${this.clients.size}`);
       emitSessionStatus(account.owner, account._id, "authenticated", { phoneNumber });
     });
 
     client.on("auth_failure", async (message) => {
+      console.error(`[WHATSAPP] Auth failure for account ${account._id}:`, message);
       await this.updateAccount(account._id, {
         status: "auth_failure",
         lastError: message || "Authentication failure.",
@@ -327,13 +339,13 @@ class WhatsappSessionManager {
           reject(err);
         });
 
-        // Timeout after 45 seconds
+        // Timeout after 90 seconds
         setTimeout(() => {
           if (finished) return;
           finished = true;
           cleanup();
           resolve(); // Resolve anyway to avoid hanging forever, health check will see current state
-        }, 45000);
+        }, 90000);
       });
     } catch (error) {
       this.clients.delete(mapKey);
@@ -348,17 +360,8 @@ class WhatsappSessionManager {
       throw new Error(errorMessage);
     }
 
-    let finalAccount = await WaAccount.findById(account._id);
-    // If it's still "initializing", wait a few seconds for the 'ready' event's DB update to commit
-    if (finalAccount && finalAccount.status === "initializing") {
-      for (let i = 0; i < 10; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        finalAccount = await WaAccount.findById(account._id);
-        if (finalAccount.status !== "initializing") break;
-      }
-    }
-
-    return finalAccount;
+    // Refresh account data one last time before returning
+    return await WaAccount.findById(account._id);
   }
 
   async stopSession(accountId) {
