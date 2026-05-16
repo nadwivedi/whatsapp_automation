@@ -300,39 +300,7 @@ class WhatsappSessionManager {
 
     client.on("message", async (message) => {
       this.recordActivity(account._id);
-      try {
-        if (!message || message.fromMe) {
-          return;
-        }
-
-        const fromRaw = String(message.from || "");
-        const fromNumber = await this.resolveInboundSenderNumber(message, fromRaw);
-        if (!fromNumber && !fromRaw) {
-          return;
-        }
-
-        const inferredTo =
-          this.normalizeRecipient(String(message.to || "")) ||
-          this.normalizeRecipient(String(client.info?.wid?._serialized || "")) ||
-          account.phoneNumber ||
-          null;
-
-        await replyInboxService.recordInboundMessage({
-          ownerId: account.owner,
-          accountId: account._id,
-          fromNumber,
-          providerChatId: fromRaw || null,
-          toNumber: inferredTo,
-          text: typeof message.body === "string" ? message.body : "",
-          providerMessageId: message.id?._serialized || null,
-          messageType: message.type || "text",
-          sentAt: Number.isFinite(Number(message.timestamp))
-            ? new Date(Number(message.timestamp) * 1000)
-            : new Date(),
-        });
-      } catch (_error) {
-        // Ignore inbound persistence errors to avoid breaking session events.
-      }
+      // Incoming message recording feature has been disabled per user request
     });
 
     // Guard: if sleepSession() was called while we were initializing in background, abort.

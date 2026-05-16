@@ -271,13 +271,6 @@ function MessagesPage({
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                         Clear All Chats
                       </button>
-                      <button
-                        onClick={() => { setShowMaintenanceMenu(false); clearUnrepliedChats(); }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-orange-600 hover:bg-orange-50 transition flex items-center gap-3"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                        Clear Unreplied Chats
-                      </button>
                     </div>
                   )}
                 </div>
@@ -298,27 +291,6 @@ function MessagesPage({
             </div>
 
             <div className="flex flex-col bg-white">
-              {/* Tabs */}
-              <div className="flex px-2 py-1 bg-gray-50/50 border-b border-gray-100">
-                {[
-                  { id: 'replied', label: 'Replied' },
-                  { id: 'unreplied', label: 'Unreplied' },
-                  { id: 'all', label: 'All' }
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setInboxFilter(tab.id)}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                      inboxFilter === tab.id 
-                        ? "bg-white text-[#25d366] shadow-sm" 
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
               {/* Database Toggle */}
               <div className="px-3 py-2 flex items-center justify-between bg-white border-b border-gray-50">
                 <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Show only saved contacts</span>
@@ -579,53 +551,7 @@ function MessagesPage({
               )}
             </div>
 
-            <form ref={replyFormRef} onSubmit={handleSendReply} className="bg-[#f0f2f5] px-4 py-3 flex items-end gap-2">
-              {!activeConversationNumber ? (
-                <div className="flex-1 bg-[#e8e8e8] rounded-full px-4 py-3 text-gray-500 text-sm">
-                  Select a conversation to reply
-                </div>
-              ) : (
-                <>
-                  <div className="shrink-0">
-                    <select
-                      value={selectedAccountId}
-                      onChange={(event) => setSelectedAccountId(event.target.value)}
-                      className="bg-white border border-gray-300 rounded-lg px-2 py-2 text-xs outline-none focus:border-[#25d366]"
-                      disabled={sendingReply}
-                    >
-                      <option value="">Auto</option>
-                      {accounts
-                        .filter((account) => account.isActive !== false && account.status === "authenticated")
-                        .map((account) => (
-                          <option key={account._id} value={account._id}>
-                            {account.phoneNumber || account.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="flex-1 flex items-end gap-2 bg-white rounded-full px-4 py-2 border border-gray-300 focus-within:border-[#25d366]">
-                    <textarea
-                      value={replyText}
-                      onChange={(event) => setReplyText(event.target.value)}
-                      onKeyDown={handleReplyKeyDown}
-                      rows={1}
-                      className="flex-1 bg-transparent outline-none text-sm resize-none max-h-32"
-                      placeholder="Type a message..."
-                      disabled={!activeConversationNumber || sendingReply}
-                    />
-                    <button
-                      type="submit"
-                      className="p-1.5 rounded-full bg-[#25d366] text-white hover:bg-[#20bd5a] transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!activeConversationNumber || sendingReply || !replyText.trim()}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                      </svg>
-                    </button>
-                  </div>
-                </>
-              )}
-            </form>
+
           </div>
         )}
       </div>

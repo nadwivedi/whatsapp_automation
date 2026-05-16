@@ -178,7 +178,7 @@ export function useWhatsAppManager() {
     ...getDefaultCampaignDates(),
   });
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [inboxFilter, setInboxFilter] = useState("replied");
+  const [inboxFilter, setInboxFilter] = useState("all");
   const [showOnlyDatabaseContacts, setShowOnlyDatabaseContacts] = useState(true);
 
   const stats = useMemo(() => {
