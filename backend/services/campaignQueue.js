@@ -433,7 +433,7 @@ class CampaignQueue {
         {
           status: "failed",
           updatedAt: { $gte: startOfDay },
-          error: { $regex: /not initialized|paused|State: null|State: undefined|Target closed|Session closed|Protocol error|Protocol error \(Page.printToPDF\)/i }
+          error: { $regex: /not initialized|paused|State: null|State: undefined|Target closed|Session closed|Protocol error|Protocol error \(Page.printToPDF\)|Execution context was destroyed/i }
         },
         {
           $set: {
@@ -483,7 +483,7 @@ class CampaignQueue {
             campaign: campaign._id,
             status: "pending",
           });
-          campaign.failedCount += (campaign.failedCount || 0) + pendingCount;
+          campaign.failedCount = (campaign.failedCount || 0) + pendingCount;
           campaign.queuedCount = 0;
           campaign.status = campaign.sentCount > 0 ? "completed" : "failed";
           campaign.completedAt = new Date();
