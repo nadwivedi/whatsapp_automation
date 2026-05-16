@@ -569,52 +569,76 @@ class CampaignQueue {
           const rawDailyCap =
             Number.isFinite(accountDailyLimit) && accountDailyLimit > 0
               ? Math.floor(accountDailyLimit)
-              : ownerSettings.perMobileDailyLimit;
+              : antiBot.perMobileDailyLimit;
 
           const effectiveDailyCap = getWarmUpDailyLimit(account, rawDailyCap, antiBot);
-          const effectiveHourlyCap = ownerSettings.perMobileHourlyLimit;
+          const effectiveHourlyCap = antiBot.perMobileHourlyLimit;
 
+          // ── Rule 2 & 3: Check limits BEFORE opening session ──
           if (account.sentToday >= effectiveDailyCap) {
-            await account.save();
+            // If a session is open for this account, close it immediately
             if (whatsappSessionManager.hasClient(account._id)) {
-              console.log(`[QUEUE] Account ${account.phoneNumber} reached daily limit (${effectiveDailyCap}). Sleeping session.`);
+              console.log(`[QUEUE] Account ${account.phoneNumber || account._id} hit daily limit (${account.sentToday}/${effectiveDailyCap}). Closing session immediately.`);
               whatsappSessionManager.sleepSession(account._id).catch(() => {});
             }
             const isWarmingUp = antiBot.antiBotEnabled && antiBot.warmUpEnabled && effectiveDailyCap < rawDailyCap;
             lastBlockReason = isWarmingUp
               ? `Warm-up limit reached (${effectiveDailyCap}/${rawDailyCap} daily) for ${account.phoneNumber || account.name || "account"}. Limit increases daily.`
-              : `Daily safeguard reached (${effectiveDailyCap}/24h) for one or more selected sessions.`;
+              : `Daily limit reached (${account.sentToday}/${effectiveDailyCap}) for ${account.phoneNumber || account.name || "account"}.`;
+            await account.save();
             continue;
           }
           if (account.sentThisHour >= effectiveHourlyCap) {
-            await account.save();
             if (whatsappSessionManager.hasClient(account._id)) {
-              console.log(`[QUEUE] Account ${account.phoneNumber} reached hourly limit (${effectiveHourlyCap}). Sleeping session.`);
+              console.log(`[QUEUE] Account ${account.phoneNumber || account._id} hit hourly limit (${account.sentThisHour}/${effectiveHourlyCap}). Closing session immediately.`);
               whatsappSessionManager.sleepSession(account._id).catch(() => {});
             }
-            lastBlockReason = `Hourly safeguard reached (${effectiveHourlyCap}/hour) for one or more selected sessions.`;
+            lastBlockReason = `Hourly limit reached (${account.sentThisHour}/${effectiveHourlyCap}) for ${account.phoneNumber || account.name || "account"}.`;
+            await account.save();
             continue;
           }
+
+          // ── Rule 1 & 4: Only open session if limits are free AND there's work ──
           if (!whatsappSessionManager.hasClient(account._id)) {
-            try {
-              account = await whatsappSessionManager.startSession(account._id);
-              accountCache.set(String(account._id), account);
-            } catch (err) {
-              lastBlockReason = "Connecting account failed: " + err.message;
-              continue;
+            // Fire session startup in the BACKGROUND — do NOT await.
+            // Awaiting blocks isTickRunning for 20-30s (Puppeteer startup time).
+            // The next tick (3s later) will see the session is ready and send immediately.
+            const alreadyStarting = whatsappSessionManager.startingSessions.has(String(account._id));
+            if (!alreadyStarting) {
+              console.log(`[QUEUE] Starting session for ${account.phoneNumber || account._id} in background...`);
+              whatsappSessionManager.startSession(account._id).catch(err => {
+                console.error(`[QUEUE] Background session start failed for ${account.phoneNumber || account._id}:`, err.message);
+              });
             }
-            
-            if (!whatsappSessionManager.hasClient(account._id)) {
-              lastBlockReason = "One or more selected sessions failed to start.";
-              continue;
-            }
+            lastBlockReason = `Session for ${account.phoneNumber || account._id} is starting up. Will send on next tick.`;
+            continue; // Don't block — check next candidate or next campaign
           }
 
+          // Always re-fetch account from DB to get the TRUE current status.
+          account = await WaAccount.findById(account._id);
+          if (!account) {
+            lastBlockReason = "Account disappeared from DB.";
+            continue;
+          }
+          accountCache.set(String(account._id), account);
+
+          // ── Rule 6: After opening, verify the session is actually authenticated ──
           if (account.status !== "authenticated") {
-            lastBlockReason = "One or more selected sessions are not authenticated (Status: " + account.status + ").";
-            if (account.status !== "initializing" && account.status !== "qr_ready") {
-              console.log(`[QUEUE] Account ${account.phoneNumber || account._id} skipped: status is ${account.status}`);
+            // If it's actively initializing or scanning QR, give it time — don't penalize
+            if (account.status === "initializing" || account.status === "qr_ready") {
+              lastBlockReason = `Session for ${account.phoneNumber || account._id} is starting up (${account.status}). Waiting...`;
+              continue;
             }
+
+            // Any other non-authenticated state = Unable to Connect — mark it and skip
+            console.warn(`[QUEUE] Account ${account.phoneNumber || account._id} is not authenticated (status: ${account.status}). Marking as disconnected — requires re-login.`);
+            await WaAccount.findByIdAndUpdate(account._id, {
+              status: "disconnected",
+              lastError: `Session could not authenticate (was: ${account.status}). Please scan QR to reconnect.`,
+              qrCodeDataUrl: null,
+            });
+            whatsappSessionManager.sleepSession(account._id).catch(() => {});
+            lastBlockReason = `Account ${account.phoneNumber || account._id} is disconnected. Needs re-login.`;
             continue;
           }
 
@@ -624,8 +648,8 @@ class CampaignQueue {
               ? Math.ceil((cooldown.nextAllowedAt - Date.now()) / 1000)
               : 0;
             lastBlockReason = antiBot.antiBotEnabled
-              ? `Anti-bot: account ${account.phoneNumber || account.name || ""} cooling down (${remainingSec}s). Other accounts may still send.`
-              : "Selected sessions are cooling down. Retrying shortly.";
+              ? `Anti-bot: ${account.phoneNumber || account.name || ""} cooling down (${remainingSec}s remaining).`
+              : "Session is cooling down between messages. Retrying shortly.";
             continue;
           }
 
@@ -757,8 +781,13 @@ class CampaignQueue {
 
         await Promise.all([selectedMessage.save(), campaign.save(), selectedAccount.save(), contactUpdate]);
 
-        // ── Immediate Cleanup ──
-        // Recalculate caps to check if we just hit them
+        // ── Rule 3 & 6: Close session after limit hit or no more work ──
+        // IMPORTANT: We wait 3 seconds before closing the session.
+        // whatsapp-web.js resolves sendMessage() when the message is queued in the browser,
+        // not when it is transmitted to WhatsApp servers. Closing Puppeteer immediately
+        // kills the transmission mid-flight, marking messages as "sent" but never delivering them.
+        const DELIVERY_BUFFER_MS = 3000;
+
         const checkDailyCap = getWarmUpDailyLimit(selectedAccount,
           (Number.isFinite(Number(selectedAccount.dailyLimit)) && selectedAccount.dailyLimit > 0
             ? Math.floor(selectedAccount.dailyLimit)
@@ -766,20 +795,24 @@ class CampaignQueue {
           antiBot);
         const checkHourlyCap = antiBot.perMobileHourlyLimit;
 
-        if (selectedAccount.sentToday >= checkDailyCap || selectedAccount.sentThisHour >= checkHourlyCap) {
-          console.log(`[QUEUE] Account ${selectedAccount.phoneNumber || selectedAccount._id} reached limit after sending. Destroying session in 2s...`);
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          await whatsappSessionManager.sleepSession(selectedAccount._id).catch(() => { });
+        if (selectedAccount.sentToday >= checkDailyCap) {
+          console.log(`[QUEUE] ✓ Sent. Account ${selectedAccount.phoneNumber || selectedAccount._id} hit daily limit (${selectedAccount.sentToday}/${checkDailyCap}). Closing session in ${DELIVERY_BUFFER_MS / 1000}s...`);
+          await new Promise(resolve => setTimeout(resolve, DELIVERY_BUFFER_MS));
+          await whatsappSessionManager.sleepSession(selectedAccount._id).catch(() => {});
+        } else if (selectedAccount.sentThisHour >= checkHourlyCap) {
+          console.log(`[QUEUE] ✓ Sent. Account ${selectedAccount.phoneNumber || selectedAccount._id} hit hourly limit (${selectedAccount.sentThisHour}/${checkHourlyCap}). Closing session in ${DELIVERY_BUFFER_MS / 1000}s...`);
+          await new Promise(resolve => setTimeout(resolve, DELIVERY_BUFFER_MS));
+          await whatsappSessionManager.sleepSession(selectedAccount._id).catch(() => {});
         } else {
-          // Check if this specific account has any more work left
+          // Check if this account has ANY remaining pending messages across all campaigns
           const hasMoreWork = await CampaignMessage.exists({
             account: new mongoose.Types.ObjectId(selectedAccount._id),
             status: "pending",
           });
           if (!hasMoreWork) {
-            console.log(`[QUEUE] Account ${selectedAccount.phoneNumber || selectedAccount._id} finished all work. Destroying session in 2s...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            await whatsappSessionManager.sleepSession(selectedAccount._id).catch(() => { });
+            console.log(`[QUEUE] ✓ Sent. Account ${selectedAccount.phoneNumber || selectedAccount._id} has no more pending work. Closing session in ${DELIVERY_BUFFER_MS / 1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, DELIVERY_BUFFER_MS));
+            await whatsappSessionManager.sleepSession(selectedAccount._id).catch(() => {});
           }
         }
       } catch (error) {

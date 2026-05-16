@@ -42,7 +42,7 @@ class WhatsappSessionManager {
     
     // 1. Cleanup sessions with no activity (idle timeout)
     for (const [accountId, lastActive] of this.clientActivities.entries()) {
-      if (now - lastActive > 3 * 60 * 1000) {
+      if (now - lastActive > 5 * 60 * 1000) {
         try {
           await this.sleepSession(accountId);
         } catch (_error) { /* Ignore */ }
@@ -301,8 +301,17 @@ class WhatsappSessionManager {
       }
     });
 
+    // Guard: if sleepSession() was called while we were initializing in background, abort.
+    if (this.intentionalSleeps.has(mapKey)) {
+      this.intentionalSleeps.delete(mapKey);
+      console.log(`[WHATSAPP] Session for ${account._id} aborted — sleep was requested during startup.`);
+      try { client.destroy().catch(() => {}); } catch (_) {}
+      throw new Error("Session aborted: sleep was requested during startup.");
+    }
+
     this.clients.set(mapKey, client);
     console.log(`[WHATSAPP] Session OPENED for account ${account._id} (${account.name || account.phoneNumber}). Total active sessions: ${this.clients.size}`);
+
     await this.updateAccount(account._id, {
       status: "initializing",
       lastError: null,
@@ -409,18 +418,26 @@ class WhatsappSessionManager {
 
   async sleepSession(accountId) {
     const mapKey = String(accountId);
+
+    // Mark as intentional BEFORE doing anything, so if the in-flight start
+    // completes during our destroy, it won't re-add to clients.
+    this.intentionalSleeps.add(mapKey);
+
+    // If a background startSession is in-flight, do NOT wait for it.
+    // Just let it complete on its own — the intentionalSleeps flag will
+    // prevent it from being used, and the disconnected event will clean up.
     const inFlightStart = this.startingSessions.get(mapKey);
     if (inFlightStart) {
-      await inFlightStart.catch(() => { });
+      // Detach — don't await. The in-flight session will be destroyed
+      // by the disconnected event handler once it completes.
+      inFlightStart.catch(() => {});
     }
 
     const client = this.clients.get(mapKey);
     if (client) {
-      this.intentionalSleeps.add(mapKey);
       try {
         await client.destroy();
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.warn(`[WHATSAPP] TargetCloseError ignored during sleep for ${accountId}:`, err.message);
       } finally {
         this.clients.delete(mapKey);
@@ -734,6 +751,7 @@ class WhatsappSessionManager {
     }
 
     const chats = await client.getChats();
+    this.recordActivity(accountId);
     return chats
       .filter((chat) => chat?.isGroup)
       .map((chat) => this.buildGroupSummary(chat))
@@ -752,6 +770,7 @@ class WhatsappSessionManager {
     }
 
     const chats = await client.getChats();
+    this.recordActivity(accountId);
     return chats
       .filter((chat) => {
         if (!chat?.isGroup) {
@@ -777,6 +796,7 @@ class WhatsappSessionManager {
     }
 
     const chat = await this.ensureGroupChat(client, groupId);
+    this.recordActivity(accountId);
     const group = this.buildGroupSummary(chat);
     const participants = Array.isArray(chat?.participants)
       ? chat.participants
@@ -845,21 +865,31 @@ class WhatsappSessionManager {
   }
 
   async restoreActiveSessions() {
-    const accounts = await WaAccount.find({
-      isActive: true,
-      status: { $in: ["initializing", "authenticated", "qr_ready"] },
-    }).select("_id");
+    // ── Rule 4: Do NOT auto-start sessions on server boot ──
+    // Sessions are opened on-demand by the campaign queue ONLY when:
+    //   (a) there is an active campaign with pending messages, AND
+    //   (b) the account has not reached its daily/hourly limit.
+    // This prevents unnecessary RAM usage from idle Puppeteer processes.
 
-    for (const account of accounts) {
-      try {
-        await this.startSession(account._id);
-      } catch (error) {
+    // Reset any accounts that got stuck in a transient state during a previous crash
+    const stuckAccounts = await WaAccount.find({
+      isActive: true,
+      status: { $in: ["initializing", "qr_ready"] },
+    }).select("_id phoneNumber name");
+
+    if (stuckAccounts.length > 0) {
+      console.log(`[WHATSAPP] Resetting ${stuckAccounts.length} stuck accounts (initializing/qr_ready → disconnected) on startup.`);
+      for (const account of stuckAccounts) {
         await this.updateAccount(account._id, {
           status: "disconnected",
-          lastError: `Restore failed: ${error.message}`,
+          qrCodeDataUrl: null,
+          lastError: "Server restarted — please scan QR to reconnect.",
         });
+        console.log(`[WHATSAPP] Reset stuck account: ${account.phoneNumber || account._id}`);
       }
     }
+
+    console.log(`[WHATSAPP] Startup complete. Sessions will open on-demand when campaigns have pending work.`);
   }
 }
 

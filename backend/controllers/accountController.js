@@ -244,48 +244,66 @@ async function getOwnedAccountOr404(ownerId, accountId, res) {
   return account;
 }
 
+async function ensureSessionActive(accountId) {
+  if (!whatsappSessionManager.hasClient(accountId)) {
+    console.log(`[GROUPS] Starting session for ${accountId} on-demand...`);
+    await whatsappSessionManager.startSession(accountId);
+  }
+}
+
 async function listAccountGroups(req, res) {
   const account = await getOwnedAccountOr404(req.user._id, req.params.accountId, res);
-  if (!account) {
-    return;
-  }
+  if (!account) return;
 
-  const groups = await whatsappSessionManager.listGroups(account._id);
-  return res.json({ groups });
+  try {
+    await ensureSessionActive(account._id);
+    const groups = await whatsappSessionManager.listGroups(account._id);
+    return res.json({ groups });
+  } catch (error) {
+    console.error("[GROUPS] listAccountGroups error:", error.message);
+    return res.status(500).json({ message: error.message || "Failed to fetch groups." });
+  }
 }
 
 async function findAccountGroupsByNumber(req, res) {
   const account = await getOwnedAccountOr404(req.user._id, req.params.accountId, res);
-  if (!account) {
-    return;
-  }
+  if (!account) return;
 
   const mobileNumber = String(req.query.mobileNumber || "").trim();
   if (!mobileNumber) {
     return res.status(400).json({ message: "mobileNumber is required." });
   }
 
-  const groups = await whatsappSessionManager.findGroupsByParticipantNumber(
-    account._id,
-    mobileNumber,
-  );
-
-  return res.json({ groups });
+  try {
+    await ensureSessionActive(account._id);
+    const groups = await whatsappSessionManager.findGroupsByParticipantNumber(
+      account._id,
+      mobileNumber,
+    );
+    return res.json({ groups });
+  } catch (error) {
+    console.error("[GROUPS] findAccountGroupsByNumber error:", error.message);
+    return res.status(500).json({ message: error.message || "Failed to find groups." });
+  }
 }
 
 async function getAccountGroupParticipants(req, res) {
   const account = await getOwnedAccountOr404(req.user._id, req.params.accountId, res);
-  if (!account) {
-    return;
-  }
+  if (!account) return;
 
   const groupId = decodeURIComponent(String(req.params.groupId || ""));
   if (!groupId) {
     return res.status(400).json({ message: "groupId is required." });
   }
 
-  const payload = await whatsappSessionManager.getGroupParticipants(account._id, groupId);
-  return res.json(payload);
+  try {
+    await ensureSessionActive(account._id);
+    const payload = await whatsappSessionManager.getGroupParticipants(account._id, groupId);
+    return res.json(payload);
+  } catch (error) {
+    console.error("[GROUPS] getAccountGroupParticipants error:", error.message);
+    return res.status(500).json({ message: error.message || "Failed to fetch participants." });
+  }
 }
 
 async function deleteAccount(req, res) {
