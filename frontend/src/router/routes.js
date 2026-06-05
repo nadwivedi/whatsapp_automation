@@ -9,6 +9,8 @@ export const ROUTES = {
   admin: "/admin",
   adminLogin: "/adm",
   groups: "/groups",
+  whatsapp: "/whatsapp",
+  whatsappSettings: "/whatsapp-settings",
 };
 
 export const NAV_ITEMS = [
@@ -18,6 +20,7 @@ export const NAV_ITEMS = [
   { key: "contacts", label: "Contacts", icon: "CT", path: ROUTES.contacts },
   { key: "campaigns", label: "Campaigns", icon: "CP", path: ROUTES.campaigns },
   { key: "messages", label: "Messages", icon: "MS", path: ROUTES.messages },
+  { key: "whatsapp", label: "WhatsApp", icon: "WA", path: ROUTES.whatsapp },
   { key: "settings", label: "Settings", icon: "ST", path: ROUTES.settings },
   { key: "admin", label: "Admin", icon: "AD", path: ROUTES.admin },
   { key: "groups", label: "Groups", icon: "GP", path: ROUTES.groups },
@@ -28,6 +31,7 @@ ROUTE_KEYS["/contact-categories"] = "contacts";
 ROUTE_KEYS["/business-categories"] = "contacts";
 ROUTE_KEYS["/businesses"] = "contacts";
 ROUTE_KEYS[ROUTES.adminLogin] = "admin";
+ROUTE_KEYS[ROUTES.whatsappSettings] = "whatsapp";
 
 export function getRouteKey(pathname) {
   return ROUTE_KEYS[pathname] || "dashboard";

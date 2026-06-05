@@ -39,6 +39,7 @@ const campaignQueue = require("./services/campaignQueue");
 const whatsappSessionManager = require("./services/whatsappSessionManager");
 const { initializeReplySocketServer } = require("./services/replySocketServer");
 const { initHealthCheckJob } = require("./services/healthCheckJob");
+const { initWhatsAppMessageSender } = require("./jobs/whatsappMessageSender");
 
 const PORT = Number(process.env.PORT || 5000);
 
@@ -52,6 +53,7 @@ async function startServer() {
   
   campaignQueue.start();
   initHealthCheckJob();
+  initWhatsAppMessageSender();
   // REMOVED: await whatsappSessionManager.restoreActiveSessions();
 
   const httpServer = http.createServer(app);

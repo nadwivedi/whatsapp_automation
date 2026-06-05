@@ -14,7 +14,11 @@ import SettingsPage from "./pages/SettingsPage";
 import AdminPage from "./pages/AdminPage";
 import AdminLoginPage from "./pages/AdminLoginPage";
 import GroupsPage from "./pages/GroupsPage";
+import WhatsAppPage from "./pages/WhatsApp/WhatsApp";
+import WhatsAppSettingsPage from "./pages/WhatsAppSettings/WhatsAppSettings";
 import AdminAppShell from "./components/AdminAppShell";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function App() {
   const app = useWhatsAppManager();
@@ -218,6 +222,15 @@ function App() {
       );
     }
 
+    if (activeRoute === "whatsapp") {
+      return (
+        <div className="space-y-4 sm:space-y-6">
+          <WhatsAppPage />
+          <WhatsAppSettingsPage />
+        </div>
+      );
+    }
+
     return (
       <DashboardPage
         stats={app.stats}
@@ -243,6 +256,8 @@ function App() {
       >
         {renderPage()}
       </SelectedShell>
+
+      <ToastContainer position="top-right" autoClose={3000} />
 
       {app.booting && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/20 backdrop-blur-[2px]">

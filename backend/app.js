@@ -9,6 +9,8 @@ const settingsRoutes = require("./routes/settingsRoutes");
 const contactCategoryRoutes = require("./routes/contactCategoryRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const replyRoutes = require("./routes/replyRoutes");
+const whatsappRoutes = require("./routes/whatsapp");
+const whatsappSettingsRoutes = require("./routes/whatsappSettings");
 
 const app = express();
 const defaultCorsOrigins = [
@@ -67,6 +69,8 @@ app.use("/api/settings", requireAuth, settingsRoutes);
 app.use("/api/contact-categories", requireAuth, contactCategoryRoutes);
 app.use("/api/contacts", requireAuth, contactRoutes);
 app.use("/api/replies", requireAuth, replyRoutes);
+app.use("/api/whatsapp", requireAuth, whatsappRoutes);
+app.use("/api/whatsapp-settings", requireAuth, whatsappSettingsRoutes);
 
 app.use((err, _req, res, _next) => {
   const message = err?.message || "Unexpected server error.";
